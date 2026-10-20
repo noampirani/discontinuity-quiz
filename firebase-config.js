@@ -1,6 +1,6 @@
 // הגדרה חד־פעמית: הדביקו כאן את אובייקט ה־firebaseConfig שהתקבל מ־Firebase.
 // זהו מזהה פרויקט ציבורי, לא סיסמה. ההגנה על החדרים היא באמצעות כללי מסד הנתונים.
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: "AIzaSyC9oVDFMqNPYaofWOoYGoJBttD29HBnza8",
   authDomain: "kahoot-analysis-for-da.firebaseapp.com",
   databaseURL: "https://kahoot-analysis-for-da-default-rtdb.firebaseio.com",
