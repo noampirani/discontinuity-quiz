@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111427">
-  <meta name="description" content="משחק קצר לתרגול סוגי אי־רציפות: סליקה, קפיצה ועיקרית. תשע שאלות עם גרפים.">
+  <meta name="description" content="משחק קצר לתרגול סוגי אי־רציפות: סליקה, קפיצה ועיקרית. עשר שאלות עם גרפים.">
   <title>רגע, מה קרה לפונקציה? | משחק אי־רציפות</title>
   <style>
     :root { color-scheme: dark; --bg:#111427; --panel:#1c213b; --panel2:#242b49; --ink:#f4f5ff; --muted:#b9c0db; --accent:#a98fff; --turq:#65e1cb; --gold:#ffc967; --good:#48d9ab; --bad:#ff8396; }
@@ -116,6 +116,9 @@
     .primary { background:linear-gradient(135deg,#ad91ff,#d7a4ef); color:#1b1630; box-shadow:0 8px 24px #0c062c4a; }
     .secondary { background:#303757; color:white; border:1px solid #545a7f; }
     .small { min-height:37px; border-radius:10px; padding:8px 13px; font-size:14px; }
+    .btn-close-room { background:#533045; border:1px solid #b76a85; color:#ffe5ed; }
+    .btn-close-room:hover { background:#69374f; }
+    .btn-close-room:disabled { opacity:.6; cursor:wait; }
     .note { color:#a8b1d0; font-size:13px; line-height:1.8; }
     .toggle { display:flex; align-items:center; gap:10px; font-size:14px; color:#dbe0f7; cursor:pointer; user-select:none; }
     .toggle input { inline-size:18px; block-size:18px; accent-color:#bba6ff; cursor:pointer; }
@@ -168,7 +171,7 @@
 </head>
 <body>
   <main class="shell">
-    <div class="topbar"><div class="brand">∿ &nbsp; אנליזה למדעי הנתונים</div><span class="tag">מיני־חידון · 9 גרפים · 3 סוגי אי־רציפות</span></div>
+    <div class="topbar"><div class="brand">∿ &nbsp; אנליזה למדעי הנתונים</div><span class="tag">מיני־חידון · 10 גרפים · 3 סוגי אי־רציפות</span></div>
 
     <section id="home" class="screen intro">
       <div>
@@ -181,7 +184,7 @@
         <p class="note">סטודנטים מתחברים בכינוי וקוד חדר ורואים את הדירוג. המשחק האישי ומצב ההקרנה עובדים גם בלי Firebase.</p>
       </div>
       <div class="intro-art" aria-hidden="true">
-        <div class="mini-head"><span>חידת דוגמה</span><span style="color:#ffc967">01 / 09</span></div>
+        <div class="mini-head"><span>חידת דוגמה</span><span style="color:#ffc967">01 / 10</span></div>
         <svg viewBox="0 0 460 320" class="mini-svg" xmlns="http://www.w3.org/2000/svg"><rect width="460" height="320" fill="#fcfdff"/><g stroke="#e6eaf4" stroke-width="1"><path d="M55 50H420M55 100H420M55 150H420M55 200H420M55 250H420M105 20V280M160 20V280M215 20V280M270 20V280M325 20V280M380 20V280"/></g><path d="M55 151H420 M215 20V280" stroke="#9aa7bc" stroke-width="1.5"/><path d="M270 20V280" stroke="#b368f5" stroke-dasharray="6 7" stroke-width="2"/><path d="M55 220 Q162 213 270 151 M270 151 Q340 116 420 20" fill="none" stroke="#2879d7" stroke-width="5" stroke-linecap="round"/><circle cx="270" cy="151" r="9" fill="white" stroke="#2879d7" stroke-width="4"/><circle cx="270" cy="74" r="8" fill="#2879d7" stroke="white" stroke-width="2"/><text x="280" y="34" fill="#9556d9" font-family="Arial" font-size="17" font-weight="bold">x=1</text><text x="401" y="143" fill="#64748b" font-family="Arial" font-size="15">x</text></svg>
         <div class="mini-caption">גם אם הערך בנקודה קיים — זה לא אומר שהפונקציה רציפה שם.</div>
       </div>
@@ -246,7 +249,7 @@
 
     <section id="liveRoom" class="screen" hidden>
       <div class="live-head"><div><span class="kicker" id="liveRoleLabel">משחק כיתתי</span><div><span class="room-code" id="liveRoomCode">———</span></div></div>
-        <div class="live-actions"><button class="btn secondary small" id="liveCopyLink" hidden>העתק קישור הזמנה</button><button class="btn secondary small" id="liveLeave">יציאה למסך הראשי</button></div>
+        <div class="live-actions"><button class="btn secondary small" id="liveCopyLink" hidden>העתק קישור הזמנה</button><button class="btn btn-close-room small" id="liveResetRoom" hidden title="מוחק את החדר, התשובות והניקוד, ומחזיר אותך לפתיחת חדר חדש">🗑️ סגור חדר ואפס משחק</button><button class="btn secondary small" id="liveLeave">יציאה למסך הראשי</button></div>
       </div>
       <div class="host-invite" id="liveHostInvite" hidden>
         <div><h2>📲 סרקו והצטרפו למשחק!</h2><p class="live-meta">הקרינו את הקוד הזה בכיתה. הסטודנטים יסרקו, יבחרו כינוי וייכנסו ישר למסך ההצטרפות — בלי אפשרות לפתוח חדר.</p><a class="room-link" id="liveInviteLink" target="_blank" rel="noopener"></a><p class="note">אפשר גם להיכנס מהכתובת הרגילה ולהקליד את קוד החדר.</p></div>
@@ -255,7 +258,7 @@
       <div id="liveRoomError" class="live-error" role="alert"></div>
       <div id="liveStage" aria-live="polite"></div>
     </section>
-    <div class="floating-credit">אי־רציפות בנקודה · 9 שאלות עם גרפים · משחק אישי ומצב הקרנה ללא תשתית · חדרים כיתתיים דרך Firebase</div>
+    <div class="floating-credit">אי־רציפות בנקודה · 10 שאלות עם גרפים · משחק אישי ומצב הקרנה ללא תשתית · חדרים כיתתיים דרך Firebase</div>
   </main>
 <script>
 (() => {
@@ -272,7 +275,8 @@
     { id:6, at:0, type:2, shape:'oscillation', caption:'תנודות שהולכות ומצטופפות', explanation:'הפונקציה sin(1/x) מתנודדת ליד 0 ואינה מתקרבת למספר אחד. העובדה ש־f(0)=0 אינה משנה זאת: אי־רציפות עיקרית.' },
     { id:7, at:0, type:0, shape:'absoluteHole', caption:'חור ללא נקודה מלאה', explanation:'הגבול משני הצדדים שווה ל־0.5, אבל f(0) לא מוגדרת. אפשר להגדיר f(0)=0.5 ולקבל רציפות, ולכן זו סליקה.' },
     { id:8, at:-1, type:1, shape:'step', caption:'פונקציית מדרגה', explanation:'משמאל ל־‎−1 הגובה הוא 1.5, ומימין הגובה ‎−0.5. הגבולות החד־צדדיים שונים: קפיצה.' },
-    { id:9, at:0, type:2, shape:'oneOverX2', caption:'שני הענפים עולים בלי חסם', explanation:'משני הצדדים הערכים שואפים ל־+∞, ולא למספר ממשי סופי. זו אי־רציפות עיקרית (לא סליקה).' }
+    { id:9, at:0, type:2, shape:'oneOverX2', caption:'שני הענפים עולים בלי חסם', explanation:'משני הצדדים הערכים שואפים ל־+∞, ולא למספר ממשי סופי. זו אי־רציפות עיקרית (לא סליקה).' },
+    { id:10, at:0, type:0, shape:'shrinkingOscillation', caption:'תנודות שגובהן קטן ככל שמתקרבים לאפס, אך ערך הפונקציה שונה', explanation:'למרות התנודות, מתקיים |x·sin(1/x)| ≤ |x|, ולכן הגבול משני הצדדים ב־0 הוא 0. מאחר ש־f(0)=1.8, זו אי־רציפות סליקה: שינוי ערך אחד יתקן אותה.' }
   ];
   const $ = id => document.getElementById(id);
   const state = { mode:'solo', timed:true, i:0, points:0, right:0, responses:[], revealed:false, timer:null, deadline:null };
@@ -360,7 +364,7 @@
     clearTimer(); show('result');
     const teacher=state.mode==='present';
     $('resultTitle').textContent=teacher?'סיימתם את כל הגרפים!':'איך הלך?';
-    $('finalScore').textContent=teacher?'9 / 9':`${state.right} / ${QUESTIONS.length}`;
+    $('finalScore').textContent=teacher?`${QUESTIONS.length} / ${QUESTIONS.length}`:`${state.right} / ${QUESTIONS.length}`;
     $('resultText').textContent=teacher?'אפשר לחזור לשאלות או לפתוח משחק אישי לסטודנטים.':`זיהית נכון ${state.right} מתוך ${QUESTIONS.length} נקודות אי־רציפות. צברת ${state.points} נקודות.`;
     const wrong=state.responses.filter(a=>!a.correct);
     $('recap').innerHTML=teacher?'':wrong.length?'<h3>שאלות שכדאי לחזור אליהן</h3>'+wrong.map(a=>{ const q=QUESTIONS.find(z=>z.id===a.q);return `<div class="recap-item"><strong>שאלה ${a.q}: אי־רציפות ${TYPES[q.type]}</strong><div>${esc(q.explanation)}</div></div>`; }).join(''):'<p style="text-align:center">מצוין! כל התשובות נכונות.</p>';
@@ -420,6 +424,11 @@
       case 'oneOverX2': {
         curves=line(-3,-0.009,x=>1/(x*x),720)+line(0.009,3,x=>1/(x*x),720); break;
       }
+      case 'shrinkingOscillation': {
+        const f=x=>x*Math.sin(1/x);
+        curves=line(-3,-0.0015,f,3200)+line(0.0015,3,f,3200);
+        points=open(0,0)+full(0,1.8); break;
+      }
     }
     const grid=[];
     for(let x=-3;x<=3;x++) {
@@ -460,6 +469,6 @@
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
-<script type="module" src="./live.js?v=results-2"></script>
+<script type="module" src="./live.js?v=reset-10questions-1"></script>
 </body>
 </html>

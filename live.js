@@ -116,6 +116,7 @@ async function joinRoom() {
 function detachRoom() {
   for(const unsub of live.unsubs.splice(0)) try { unsub(); } catch {}
   if(live.clock) { clearInterval(live.clock); live.clock = null; }
+  $('liveResetRoom').hidden=true;
   live.code=''; live.role=''; live.meta=null; live.players={}; live.answers={}; live.stageKey=''; live.revealView=''; live.fallbackRevealedAt=0; live.autoReveal=false;
 }
 function attachRoom(code,role) {
@@ -127,6 +128,7 @@ function attachRoom(code,role) {
   $('liveInviteLink').href=codeURL(code);
   $('liveHostInvite').hidden=role!=='host';
   $('liveCopyLink').hidden=role!=='host';
+  $('liveResetRoom').hidden=role!=='host';
   if(role==='host') renderQR(codeURL(code));
   roomError(''); $('liveStage').innerHTML='<p class="live-status">טוענים את פרטי החדר…</p>';
   window.quizShow('liveRoom');
@@ -285,7 +287,7 @@ function hostControls() {
   if(phase==='lobby') return `<div class="live-actions"><button class="btn primary" data-action="start">התחל משחק — שאלה 1 ←</button></div>`;
   if(phase==='question') return '<div class="live-actions"><button class="btn primary" data-action="reveal">חשוף תשובה וניקוד</button></div>';
   if(phase==='revealed') return `<div class="live-actions live-reveal-actions">${!isBoardVisible()?'<button class="btn secondary" data-action="showBoard">🏆 הצג דירוג עכשיו</button>':''}<button class="btn primary" data-action="next">${live.meta.index===QUESTIONS.length-1?'סיום המשחק והצגת דירוג 🏆':'לשאלה הבאה ←'}</button></div>`;
-  return '<div class="live-actions"><button class="btn secondary" data-action="close">סגור ומחק את החדר</button></div>';
+  return '<p class="live-meta">המשחק הסתיים. כדי לנקות את הטסטים ולהתחיל מחדש, לחצו על ״סגור חדר ואפס משחק״ למעלה.</p>';
 }
 function stageMarkup() {
   const m=live.meta, host=live.role==='host', count=Object.keys(live.players).length;
@@ -293,7 +295,7 @@ function stageMarkup() {
     return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
   }
   if(m.phase==='finished') {
-    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">תשע שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div id="liveBoardPlace"></div><div id="liveAllStats"></div>`;
+    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">${QUESTIONS.length} שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div id="liveBoardPlace"></div><div id="liveAllStats"></div>`;
   }
   const q=QUESTIONS[m.index];
   if(!q) return '<div class="live-panel">מספר שאלה לא תקין.</div>';
@@ -395,10 +397,22 @@ async function sendAnswer(choice) {
   finally { inProgress=false; refreshStudentChoices(); }
 }
 async function closeRoom() {
-  if(live.role!=='host') return;
-  if(!confirm('למחוק את החדר ואת התשובות של כל הסטודנטים? לא יהיה אפשר לשחזר.')) return;
-  try { await remove(ref(db,`rooms/${live.code}`)); safeStore(null); detachRoom(); window.quizShow('home'); }
-  catch(e) { roomError(errorText(e)); }
+  if(live.role!=='host' || !live.code || inProgress) return;
+  const code=live.code;
+  if(!confirm(`לסגור את חדר ${code} ולאפס את כל הטסט?\n\nכל התשובות, הכינויים והניקוד בחדר הזה יימחקו לצמיתות. הסטודנטים ינותקו ותוכל לפתוח חדר חדש עם קוד אחר.`)) return;
+  inProgress=true;
+  $('liveResetRoom').disabled=true;
+  roomError('');
+  try {
+    // למארח מותר למחוק את החדר כולו לפי כללי Firebase הקיימים.
+    // מחיקת החדר מנקה גם את רשימות המשתתפים, התשובות והניקוד.
+    await remove(ref(db,`rooms/${code}`));
+    safeStore(null);
+    detachRoom();
+    setupError('✅ החדר הקודם נסגר וכל תוצאות הטסט נמחקו. אפשר ליצור חדר חדש.');
+    window.quizShow('liveSetup');
+  } catch(e) { roomError(errorText(e)); }
+  finally { inProgress=false; $('liveResetRoom').disabled=false; }
 }
 async function resumeSession() {
   const saved=safeLoad();
@@ -429,6 +443,7 @@ $('liveLeave').addEventListener('click',()=>{
   if(live.role==='host' && live.meta?.phase!=='finished' && !confirm('יציאה מהמסך תעצור את ניהול המשחק עד שתחזרו אליו. להמשיך?')) return;
   detachRoom(); window.quizShow('home');
 });
+$('liveResetRoom').addEventListener('click',closeRoom);
 $('liveCopyLink').addEventListener('click',async()=>{
   if(!live.code) return;
   try { await navigator.clipboard.writeText(codeURL(live.code)); $('liveCopyLink').textContent='✅ הועתק!'; setTimeout(()=>$('liveCopyLink').textContent='העתק קישור הזמנה',1600); }
