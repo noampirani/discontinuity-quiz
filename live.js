@@ -238,8 +238,13 @@ function resultsSummaryHTML() {
   return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
     <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>📊 איך ענתה הכיתה?</h2>
       <p class="live-answer-label">התשובה הנכונה: <strong>אי־רציפות ${esc(TYPES[q.type])}</strong></p></div>
-    <div id="liveResultsStats">${statsHTML()}</div>
-    <p class="live-results-explanation">${esc(q.explanation)}</p>
+    <div class="live-results-grid">
+      <div class="graph-card live-results-graph">
+        <div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div>
+        <div class="plot-wrap">${makePlot(q)}</div>
+      </div>
+      <div id="liveResultsStats">${statsHTML()}</div>
+    </div>
     ${selfMessage?`<p class="live-status good">${selfMessage}</p>`:''}
     <p class="live-coming-next">🏆 ממתינים למתרגל להצגת טבלת המובילים…</p>
   </div>`;
@@ -334,7 +339,7 @@ function renderLive() {
     // לא מציגים למתרגל או לסטודנטים ספירות בזמן שאלה.
     if(live.role==='student') refreshStudentChoices();
     const explain=$('liveRevealFeedback');
-    if(explain) explain.innerHTML=m.phase==='revealed'?`<div class="feedback good"><strong>התשובה: אי־רציפות ${esc(TYPES[QUESTIONS[m.index].type])}</strong>${esc(QUESTIONS[m.index].explanation)}</div>`:'';
+    if(explain) explain.innerHTML='';
   }
   const board=$('liveBoardPlace');
   if(board) board.innerHTML=m.phase==='finished'?boardHTML():'';
