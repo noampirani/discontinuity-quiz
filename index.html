@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111427">
+  <meta name="description" content="משחק קצר לתרגול סוגי אי־רציפות: סליקה, קפיצה ועיקרית. תשע שאלות עם גרפים.">
+  <title>רגע, מה קרה לפונקציה? | משחק אי־רציפות</title>
+  <style>
+    :root { color-scheme: dark; --bg:#111427; --panel:#1c213b; --panel2:#242b49; --ink:#f4f5ff; --muted:#b9c0db; --accent:#a98fff; --turq:#65e1cb; --gold:#ffc967; --good:#48d9ab; --bad:#ff8396; }
+    * { box-sizing: border-box; }
+    html { min-height: 100%; }
+    body { margin:0; min-height:100vh; background:radial-gradient(ellipse at 12% 8%,#30285c 0%,transparent 41%),radial-gradient(ellipse at 90% 80%,#152f4c 0%,transparent 46%),var(--bg); font-family:Arial,"Noto Sans Hebrew",sans-serif; color:var(--ink); }
+    button { font:inherit; cursor:pointer; }
+    button:focus-visible, a:focus-visible { outline:3px solid #ffdc83; outline-offset:4px; }
+    .shell { width:min(1060px,calc(100% - 28px)); margin:0 auto; padding:24px 0 35px; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:17px; }
+    .brand { font-weight:800; letter-spacing:.1px; font-size:15px; color:#e4dafa; }
+    .tag { display:inline-flex; align-items:center; gap:6px; padding:8px 11px; border:1px solid #424665; border-radius:999px; color:#d9daf0; font-size:13px; }
+    .screen[hidden] { display:none !important; }
+    .live-panel { border:1px solid #444d72; background:#202741e8; border-radius:19px; padding:23px; margin:18px 0; }
+    .live-panel h2 { margin:0 0 15px; font-size:25px; }
+    .live-split { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+    .live-field { display:block; width:100%; max-width:430px; background:#11182f; border:1px solid #69749b; border-radius:11px; color:white; font:inherit; font-size:18px; padding:12px; margin:9px 0 15px; }
+    .live-field:focus { outline:3px solid #b9a2ff; }
+    .live-error { color:#ffabb8; font-weight:700; min-height:22px; line-height:1.6; }
+    .room-code { letter-spacing:5px; font-family:monospace; font-size:clamp(28px,5vw,46px); color:#ffe6ad; direction:ltr; display:inline-block; font-weight:900; margin:7px 0; }
+    .room-link { display:block; overflow-wrap:anywhere; text-align:left; direction:ltr; font-size:13px; color:#b9e9ff; }
+    .live-head { display:flex; gap:12px; justify-content:space-between; align-items:center; flex-wrap:wrap; margin:14px 0; }
+    .live-badge { background:#293657; border:1px solid #5f6c93; padding:7px 12px; border-radius:11px; font-size:14px; }
+    .live-board { border:1px solid #465376; background:#1d2541; border-radius:17px; padding:16px; margin:15px 0; }
+    .live-board h3 { margin:0 0 12px; }
+    .live-rank { display:grid; grid-template-columns:58px minmax(0,1fr) auto; gap:9px; align-items:center; padding:9px 6px; border-bottom:1px solid #394361; }
+    .live-rank:last-child { border-bottom:0; }
+    .live-rank.me { background:#36315e; border-radius:8px; }
+    .live-rank b { font-variant-numeric:tabular-nums; }
+    .live-names { display:flex; flex-wrap:wrap; gap:8px; }
+    .live-name { border:1px solid #576485; border-radius:20px; padding:6px 12px; background:#303653; }
+    .live-stats { display:flex; flex-direction:column; gap:9px; margin:13px 0; }
+    .live-stat { display:grid; grid-template-columns:75px minmax(0,1fr) 36px; gap:10px; align-items:center; font-size:14px; }
+    .live-track { width:100%; height:17px; border-radius:999px; background:#333a54; overflow:hidden; }
+    .live-fill { height:100%; background:#a68ff5; border-radius:999px; transition:width .2s; }
+    .live-stat.winner .live-fill { background:#4bddad; }
+    .live-meta { color:#c0c9e1; font-size:15px; line-height:1.7; }
+    .live-status { border-radius:12px; background:#2e3856; border:1px solid #545f82; padding:11px 13px; margin:13px 0; line-height:1.65; }
+    .live-status.good { border-color:#49d4ab; background:#214a43; }
+    .live-status.warn { border-color:#f4bb62; }
+    .live-actions { display:flex; flex-wrap:wrap; gap:10px; margin:13px 0; }
+    .live-actions button:disabled,.choice:disabled { cursor:default; }
+    .live-loading { opacity:.68; pointer-events:none; }
+    @media(max-width:800px) { .live-split { grid-template-columns:1fr; } .live-panel { padding:15px; } .live-rank { grid-template-columns:52px minmax(0,1fr) auto; } }
+
+    .intro { display:grid; grid-template-columns:1.1fr .9fr; gap:24px; align-items:center; min-height:calc(100vh - 165px); }
+    .kicker { color:var(--turq); font-size:13px; font-weight:800; letter-spacing:1px; }
+    h1 { font-size:clamp(37px,5.8vw,66px); line-height:1.12; margin:15px 0 22px; letter-spacing:-1.6px; }
+    .highlight { color:#d5b9ff; }
+    .lead { color:#d0d4e9; font-size:clamp(17px,2vw,21px); line-height:1.75; max-width:590px; margin:0 0 28px; }
+    .chips { display:flex; gap:9px; flex-wrap:wrap; margin:0 0 27px; }
+    .chip { border:1px solid #4b5071; background:#202540; color:#ebeafe; border-radius:12px; padding:8px 13px; font-weight:700; font-size:14px; }
+    .intro-actions { display:flex; gap:12px; flex-wrap:wrap; margin:15px 0 18px; }
+    .btn { display:inline-flex; justify-content:center; align-items:center; gap:9px; border:0; border-radius:13px; font-weight:800; min-height:49px; padding:12px 19px; transition:transform .13s, filter .13s; }
+    .btn:hover { transform:translateY(-1px); filter:brightness(1.06); }
+    .primary { background:linear-gradient(135deg,#ad91ff,#d7a4ef); color:#1b1630; box-shadow:0 8px 24px #0c062c4a; }
+    .secondary { background:#303757; color:white; border:1px solid #545a7f; }
+    .small { min-height:37px; border-radius:10px; padding:8px 13px; font-size:14px; }
+    .note { color:#a8b1d0; font-size:13px; line-height:1.8; }
+    .toggle { display:flex; align-items:center; gap:10px; font-size:14px; color:#dbe0f7; cursor:pointer; user-select:none; }
+    .toggle input { inline-size:18px; block-size:18px; accent-color:#bba6ff; cursor:pointer; }
+    .intro-art { padding:19px; border:1px solid #565577; border-radius:26px; background:linear-gradient(145deg,#282747,#1c2747); box-shadow:0 22px 45px #090b1a74; transform:rotate(-2deg); }
+    .mini-head { display:flex; align-items:center; justify-content:space-between; font-size:14px; font-weight:800; margin:1px 0 12px; }
+    .mini-svg { width:100%; display:block; height:auto; border-radius:14px; background:#fbfbff; }
+    .intro-art .mini-caption { color:#cbd3ef; font-size:13px; line-height:1.55; margin-top:15px; }
+    .quizbar { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+    .quizmeta { display:flex; gap:10px; align-items:center; flex-wrap:wrap; font-size:14px; color:#c7cee8; font-weight:700; }
+    .metric { background:#202844; border:1px solid #3e4968; padding:9px 12px; border-radius:11px; }
+    .metric b { color:#fff; font-size:16px; }
+    .progress { height:8px; border-radius:99px; background:#363953; overflow:hidden; margin:11px 0 21px; }
+    .progress > div { height:100%; width:0; border-radius:inherit; background:linear-gradient(90deg,var(--turq),var(--accent)); transition:width .2s; }
+    .quiz-layout { display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr); gap:18px; align-items:stretch; }
+    .graph-card,.answer-card { border:1px solid #39435f; border-radius:20px; background:linear-gradient(155deg,#222945ee,#1b2037f5); padding:17px; min-width:0; box-shadow:0 10px 35px #080b1d36; }
+    .graph-card { display:flex; flex-direction:column; }
+    .graph-title { color:#d5d9ef; font-size:14px; font-weight:800; margin-bottom:11px; }
+    .plot-wrap { border-radius:14px; background:#fff; overflow:hidden; }
+    .plot { width:100%; height:auto; display:block; }
+    .legend { display:flex; align-items:center; flex-wrap:wrap; gap:11px; font-size:12px; color:#bec7e5; padding-top:12px; }
+    .symbol { display:inline-block; width:12px; height:12px; border:2px solid #2670ce; border-radius:50%; background:#fff; vertical-align:-2px; margin-left:3px; }
+    .symbol.filled { background:#2670ce; }
+    .symbol.line { width:15px; height:0; border:0; border-top:2px dashed #a14bee; border-radius:0; vertical-align:3px; }
+    .question { font-size:clamp(22px,2.65vw,29px); line-height:1.42; margin:4px 0 13px; }
+    .prompt { font-size:15px; color:#bac3e3; margin:0 0 18px; line-height:1.7; }
+    .choice { display:flex; align-items:center; text-align:right; gap:13px; width:100%; min-height:63px; margin-bottom:11px; padding:12px 13px; border:2px solid #47506b; border-radius:14px; background:#303754; color:#fff; font-size:18px; font-weight:800; transition:background .15s,border-color .15s,transform .12s; }
+    .choice:not(:disabled):hover { border-color:#beb0ff; background:#3a4061; transform:translateY(-1px); }
+    .choice:disabled { cursor:default; opacity:1; }
+    .letter { display:grid; place-items:center; background:#1d2544; color:#e3d8ff; border-radius:10px; font-size:15px; width:34px; height:34px; flex:0 0 auto; }
+    .choice.correct { background:#19483f; border-color:#4bddad; }
+    .choice.incorrect { background:#593044; border-color:#ff8197; }
+    .feedback { border-radius:13px; padding:13px 15px; margin-top:12px; font-size:14px; line-height:1.72; border:1px solid #5e647e; background:#2b3451; }
+    .feedback strong { display:block; font-size:17px; margin-bottom:3px; }
+    .feedback.good { border-color:#40b993; background:#1b4942; }
+    .feedback.bad { border-color:#e97d91; background:#4c3146; }
+    .footer-actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:16px; }
+    .timer { font-variant-numeric:tabular-nums; color:#ffdc96; }
+    .timer.low { color:#ff8a9c; }
+    .result-card { max-width:760px; margin:35px auto; padding:30px; border:1px solid #495472; background:#222845; border-radius:25px; text-align:center; }
+    .result-card h2 { margin:10px 0 8px; font-size:36px; }
+    .score { font-size:clamp(52px,10vw,88px); font-weight:900; color:#d8c3ff; line-height:1.15; margin:14px 0; }
+    .recap { text-align:right; max-width:570px; margin:25px auto 10px; }
+    .recap .recap-item { border-top:1px solid #4a5170; padding:13px 0; line-height:1.7; font-size:14px; }
+    .recap strong { color:#fff; }
+    .hidden { display:none !important; }
+    .floating-credit { text-align:center; color:#8f9abc; font-size:12px; padding:15px 0; }
+    @media(max-width:800px) { .intro { grid-template-columns:1fr; padding-top:28px; min-height:auto; } .intro-art { max-width:510px; margin:5px auto 10px; transform:none; width:100%; } .quiz-layout { grid-template-columns:1fr; } .shell { padding-top:15px; } .graph-card,.answer-card { padding:12px; } .question { margin-top:4px; } }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { transition:none !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="topbar"><div class="brand">∿ &nbsp; אנליזה למדעי הנתונים</div><span class="tag">מיני־חידון · 9 גרפים · 3 סוגי אי־רציפות</span></div>
+
+    <section id="home" class="screen intro">
+      <div>
+        <div class="kicker">משחק קצר לתרגול</div>
+        <h1>רגע, מה קרה<br><span class="highlight">לפונקציה?</span></h1>
+        <p class="lead">מסתכלים על הגרף, בודקים מה קורה משני צדי הנקודה, ובוחרים: אי־רציפות <b>סליקה</b>, <b>קפיצה</b> או <b>עיקרית</b>.</p>
+        <div class="chips"><span class="chip">◯ סליקה</span><span class="chip">↕ קפיצה</span><span class="chip">〰 עיקרית</span></div>
+        <div class="intro-actions"><button class="btn primary" id="startLive">🏆 &nbsp; משחק כיתתי חי + דירוג</button><button class="btn secondary" id="startSolo">▶ &nbsp; משחק אישי</button><button class="btn secondary" id="startPresent">▣ &nbsp; הקרנה ללא חיבור</button></div>
+        <label class="toggle"><input type="checkbox" id="useTimer" checked><span>שעון של 30 שניות לכל שאלה (במשחק אישי)</span></label>
+        <p class="note">במשחק כיתתי מתחברים עם כינוי וקוד חדר. המתרגל מנהל את השאלות וכולם רואים Leaderboard. משחק אישי ומצב הקרנה עובדים גם בלי Firebase.</p>
+      </div>
+      <div class="intro-art" aria-hidden="true">
+        <div class="mini-head"><span>חידת דוגמה</span><span style="color:#ffc967">01 / 09</span></div>
+        <svg viewBox="0 0 460 320" class="mini-svg" xmlns="http://www.w3.org/2000/svg"><rect width="460" height="320" fill="#fcfdff"/><g stroke="#e6eaf4" stroke-width="1"><path d="M55 50H420M55 100H420M55 150H420M55 200H420M55 250H420M105 20V280M160 20V280M215 20V280M270 20V280M325 20V280M380 20V280"/></g><path d="M55 151H420 M215 20V280" stroke="#9aa7bc" stroke-width="1.5"/><path d="M270 20V280" stroke="#b368f5" stroke-dasharray="6 7" stroke-width="2"/><path d="M55 220 Q162 213 270 151 M270 151 Q340 116 420 20" fill="none" stroke="#2879d7" stroke-width="5" stroke-linecap="round"/><circle cx="270" cy="151" r="9" fill="white" stroke="#2879d7" stroke-width="4"/><circle cx="270" cy="74" r="8" fill="#2879d7" stroke="white" stroke-width="2"/><text x="280" y="34" fill="#9556d9" font-family="Arial" font-size="17" font-weight="bold">x=1</text><text x="401" y="143" fill="#64748b" font-family="Arial" font-size="15">x</text></svg>
+        <div class="mini-caption">גם אם הערך בנקודה קיים — זה לא אומר שהפונקציה רציפה שם.</div>
+      </div>
+    </section>
+
+    <section id="quiz" class="screen" hidden>
+      <div class="quizbar">
+        <div class="quizmeta"><span class="metric" id="questionNumber">שאלה 1 מתוך 9</span><span class="metric" id="pointsDisplay">ניקוד: <b>0</b></span><span class="metric timer" id="timerDisplay">⏳ 30</span></div>
+        <div style="display:flex;gap:9px;align-items:center"><button id="fullscreen" class="btn secondary small">⛶ מסך מלא</button><button id="goHome" class="btn secondary small">יציאה</button></div>
+      </div>
+      <div class="progress"><div id="progressFill"></div></div>
+      <div class="quiz-layout">
+        <div class="graph-card">
+          <div class="graph-title">גרף הפונקציה <span style="color:#baa2ff" id="targetLabel"></span></div>
+          <div class="plot-wrap" id="plotHolder" aria-label="גרף הפונקציה"></div>
+          <div class="legend"><span><i class="symbol"></i> עיגול ריק: הנקודה לא כלולה</span><span><i class="symbol filled"></i> עיגול מלא: ערך הפונקציה</span><span><i class="symbol line"></i> הנקודה לבדיקה</span></div>
+        </div>
+        <div class="answer-card">
+          <h2 class="question" id="questionTitle">איזה סוג אי־רציפות יש כאן?</h2>
+          <p class="prompt" id="questionSub">בחנו את הגבולות מימין ומשמאל לנקודה המסומנת.</p>
+          <div id="choiceArea"></div>
+          <div id="feedback" class="feedback hidden" role="status" aria-live="polite"></div>
+          <div class="footer-actions"><button id="reveal" class="btn primary hidden">לחשוף את התשובה</button><button id="next" class="btn primary hidden">לשאלה הבאה ←</button></div>
+          <p class="note" id="teacherNote" hidden>מצב הקרנה: בקשו מהסטודנטים להצביע, ואז לחצו על ״לחשוף את התשובה״. מקש רווח חושף / מתקדם.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="result" class="screen" hidden>
+      <div class="result-card">
+        <div class="kicker">סיימנו!</div>
+        <h2 id="resultTitle">איך הלך?</h2>
+        <div class="score" id="finalScore"></div>
+        <p id="resultText" class="lead" style="margin:8px auto 17px;max-width:580px"></p>
+        <div id="recap" class="recap"></div>
+        <div class="intro-actions" style="justify-content:center"><button id="retry" class="btn primary">משחק חדש ↻</button><button id="backHome" class="btn secondary">בחזרה להתחלה</button></div>
+      </div>
+    </section>
+    <section id="liveSetup" class="screen" hidden>
+      <div class="live-head"><h1 style="font-size:clamp(30px,5vw,44px);margin:8px 0">🏆 משחק כיתתי חי</h1><button class="btn secondary small" id="liveSetupBack">← חזרה</button></div>
+      <p class="lead">המתרגל פותח חדר, הסטודנטים נכנסים עם כינוי, וכולם צוברים נקודות בטבלת מובילים משותפת.</p>
+      <div id="liveConnectionMessage" class="live-status" role="status">בודק חיבור ל־Firebase…</div>
+      <div class="live-split">
+        <div class="live-panel">
+          <h2>👩‍🏫 למתרגל</h2>
+          <p class="live-meta">יוצרים חדר ומציגים את הקוד בכיתה. רק המתרגל יכול להתחיל, לחשוף ולדלג.</p>
+          <label class="toggle"><input type="checkbox" id="liveUseTimer" checked> שעון של 30 שניות לשאלה</label>
+          <div class="live-actions"><button class="btn primary" id="createRoom">יצירת חדר חדש</button></div>
+        </div>
+        <div class="live-panel">
+          <h2>📱 לסטודנט/ית</h2>
+          <label for="liveNickname">כינוי להצגה בלוח התוצאות</label>
+          <input class="live-field" id="liveNickname" type="text" maxlength="20" autocomplete="nickname" placeholder="למשל: גאוס" dir="auto">
+          <label for="liveJoinCode">קוד החדר</label>
+          <input class="live-field" id="liveJoinCode" type="text" maxlength="6" inputmode="text" autocomplete="off" spellcheck="false" placeholder="ABC123" dir="ltr" style="text-transform:uppercase;letter-spacing:3px">
+          <div class="live-actions"><button class="btn primary" id="joinRoom">הצטרפות למשחק ←</button></div>
+        </div>
+      </div>
+      <div class="live-error" id="liveSetupError" role="alert"></div>
+      <p class="note">לא צריך לפתוח חשבון: ההתחברות נעשית באופן אנונימי. יש להשתמש בכינויים שאינם מידע אישי. כדי להפעיל חדרים חיים נדרשת הגדרת Firebase חד־פעמית לבעל האתר.</p>
+    </section>
+
+    <section id="liveRoom" class="screen" hidden>
+      <div class="live-head"><div><span class="kicker" id="liveRoleLabel">משחק כיתתי</span><div><span class="room-code" id="liveRoomCode">———</span></div></div>
+        <div class="live-actions"><button class="btn secondary small" id="liveCopyLink">העתק קישור הזמנה</button><button class="btn secondary small" id="liveLeave">יציאה למסך הראשי</button></div>
+      </div>
+      <a class="room-link" id="liveInviteLink" target="_blank" rel="noopener"></a>
+      <div id="liveRoomError" class="live-error" role="alert"></div>
+      <div id="liveStage" aria-live="polite"></div>
+    </section>
+    <div class="floating-credit">אי־רציפות בנקודה · 9 שאלות עם גרפים · משחק אישי ומצב הקרנה ללא תשתית · חדרים כיתתיים דרך Firebase</div>
+  </main>
+<script>
+(() => {
+  'use strict';
+  const TYPES = ['סליקה', 'קפיצה', 'עיקרית'];
+  // Each case is mathematically defined for x ≠ a by the pieces below.
+  // A filled dot represents f(a); open dots mark excluded one-sided endpoints or holes.
+  const QUESTIONS = [
+    { id:1, at:1, type:0, shape:'parabola', caption:'נקודה שהוסרה מהעקומה והוגדרה מחדש', explanation:'כאשר x שואף ל־1 משני הצדדים, הפונקציה שואפת ל־0.6. אבל f(1)=2.8. אפשר לתקן את הרציפות באמצעות שינוי ערך בנקודה אחת.' },
+    { id:2, at:0, type:1, shape:'jumpLines', caption:'שני ענפים שמגיעים לגבהים שונים', explanation:'הגבול משמאל הוא 1.3, והגבול מימין הוא ‎−1.2. שניהם סופיים אבל אינם שווים, ולכן זו אי־רציפות קפיצה.' },
+    { id:3, at:0, type:2, shape:'oneOverX', caption:'ענפים שמתבדרים ליד הנקודה', explanation:'כאשר x שואף ל־0 מימין הפונקציה שואפת ל־+∞, ומשמאל ל־−∞. אין גבולות חד־צדדיים סופיים: אי־רציפות עיקרית.' },
+    { id:4, at:-1, type:0, shape:'lineHole', caption:'העקומה כמעט רציפה — פרט לערך אחד', explanation:'הגבול משני הצדדים שווה ל־0.2, אבל f(−1)=−1.25. לכן אי־הרציפות סליקה.' },
+    { id:5, at:1, type:1, shape:'jumpThirdPoint', caption:'הערך בנקודה לא שייך לאף אחד מהענפים', explanation:'משמאל ל־1 מתקבל הגבול 0, ומימין ל־1 הגבול 1.5. למרות ש־f(1)=−1.8, סוג אי־הרציפות נקבע מהגבולות: קפיצה.' },
+    { id:6, at:0, type:2, shape:'oscillation', caption:'תנודות שהולכות ומצטופפות', explanation:'הפונקציה sin(1/x) מתנודדת ליד 0 ואינה מתקרבת למספר אחד. העובדה ש־f(0)=0 אינה משנה זאת: אי־רציפות עיקרית.' },
+    { id:7, at:0, type:0, shape:'absoluteHole', caption:'חור ללא נקודה מלאה', explanation:'הגבול משני הצדדים שווה ל־0.5, אבל f(0) לא מוגדרת. אפשר להגדיר f(0)=0.5 ולקבל רציפות, ולכן זו סליקה.' },
+    { id:8, at:-1, type:1, shape:'step', caption:'פונקציית מדרגה', explanation:'משמאל ל־‎−1 הגובה הוא 1.5, ומימין הגובה ‎−0.5. הגבולות החד־צדדיים שונים: קפיצה.' },
+    { id:9, at:0, type:2, shape:'oneOverX2', caption:'שני הענפים עולים בלי חסם', explanation:'משני הצדדים הערכים שואפים ל־+∞, ולא למספר ממשי סופי. זו אי־רציפות עיקרית (לא סליקה).' }
+  ];
+  const $ = id => document.getElementById(id);
+  const state = { mode:'solo', timed:true, i:0, points:0, right:0, responses:[], revealed:false, timer:null, deadline:null };
+  const panels = ['home','quiz','result','liveSetup','liveRoom'];
+  function show(which) { panels.forEach(id => $(id).hidden = id!==which); window.scrollTo({ top:0, behavior:'instant' }); }
+  function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function clearTimer() { if(state.timer!==null) { clearInterval(state.timer); state.timer=null; } }
+  function current() { return QUESTIONS[state.i]; }
+  function start(mode) {
+    clearTimer(); state.mode=mode; state.timed=mode==='solo' && $('useTimer').checked;
+    state.i=0; state.points=0; state.right=0; state.responses=[]; state.revealed=false;
+    show('quiz'); renderQuestion();
+  }
+  function renderQuestion() {
+    clearTimer(); state.revealed=false;
+    const q=current();
+    $('questionNumber').textContent=`שאלה ${state.i+1} מתוך ${QUESTIONS.length}`;
+    $('pointsDisplay').hidden=state.mode==='present';
+    $('pointsDisplay').innerHTML=`ניקוד: <b>${state.points}</b>`;
+    $('timerDisplay').hidden=!state.timed;
+    $('progressFill').style.width=`${100*state.i/QUESTIONS.length}%`;
+    $('targetLabel').textContent=`— סביב x = ${q.at}`;
+    $('questionTitle').textContent=`מה סוג אי־הרציפות ב־x = ${q.at}?`;
+    $('questionSub').textContent='התבוננו בגרף ובגבולות החד־צדדיים. בחרו תשובה אחת.';
+    $('plotHolder').innerHTML=makePlot(q);
+    $('choiceArea').innerHTML=TYPES.map((t,n)=>`<button type="button" class="choice" data-choice="${n}" ${state.mode==='present'?'disabled':''}><span class="letter">${n+1}</span><span>אי־רציפות ${esc(t)}</span></button>`).join('');
+    $('feedback').className='feedback hidden'; $('feedback').textContent='';
+    $('next').classList.add('hidden');
+    $('reveal').classList.toggle('hidden', state.mode!=='present');
+    $('teacherNote').hidden=state.mode!=='present';
+    if(state.mode==='solo') {
+      $('choiceArea').querySelectorAll('[data-choice]').forEach(b => b.addEventListener('click',()=>answer(Number(b.dataset.choice))));
+    }
+    if(state.timed) {
+      state.deadline=Date.now()+30000;
+      function tick() {
+        if(state.revealed) return;
+        const sec=Math.max(0,Math.ceil((state.deadline-Date.now())/1000));
+        $('timerDisplay').textContent=`⏳ ${sec}`;
+        $('timerDisplay').classList.toggle('low',sec<=7);
+        if(sec===0) answer(null);
+      }
+      tick(); state.timer=setInterval(tick,150);
+    }
+  }
+  function answer(selected) {
+    if(state.revealed || state.mode!=='solo') return;
+    state.revealed=true; clearTimer();
+    const q=current(), correct=selected===q.type;
+    if(correct) { state.points+=100; state.right++; }
+    state.responses.push({q:q.id, correct, selected, type:q.type});
+    $('pointsDisplay').innerHTML=`ניקוד: <b>${state.points}</b>`;
+    revealChoices(q.type,selected);
+    const title=correct?'בול! תשובה נכונה 🎉':selected===null?'נגמר הזמן! ⏰':'כמעט!';
+    showFeedback(title,q.explanation,correct);
+    showNext();
+  }
+  function revealTeacher() {
+    if(state.revealed || state.mode!=='present') return;
+    state.revealed=true;
+    revealChoices(current().type,null);
+    showFeedback('התשובה: אי־רציפות '+TYPES[current().type],current().explanation,true);
+    $('reveal').classList.add('hidden');
+    showNext();
+  }
+  function revealChoices(right,selected) {
+    $('choiceArea').querySelectorAll('[data-choice]').forEach(b => {
+      const n=Number(b.dataset.choice);
+      b.disabled=true;
+      if(n===right) b.classList.add('correct');
+      else if(selected===n) b.classList.add('incorrect');
+    });
+  }
+  function showFeedback(title,text,correct) {
+    const box=$('feedback'); box.className=`feedback ${correct?'good':'bad'}`;
+    box.innerHTML=`<strong>${esc(title)}</strong><span>${esc(text)}</span>`;
+  }
+  function showNext() { $('next').textContent=state.i===QUESTIONS.length-1?'לסיכום המשחק ←':'לשאלה הבאה ←'; $('next').classList.remove('hidden'); $('progressFill').style.width=`${100*(state.i+1)/QUESTIONS.length}%`; }
+  function nextQuestion() {
+    if(!state.revealed) return;
+    if(state.i===QUESTIONS.length-1) finish();
+    else { state.i++; renderQuestion(); }
+  }
+  function finish() {
+    clearTimer(); show('result');
+    const teacher=state.mode==='present';
+    $('resultTitle').textContent=teacher?'סיימתם את כל הגרפים!':'איך הלך?';
+    $('finalScore').textContent=teacher?'9 / 9':`${state.right} / ${QUESTIONS.length}`;
+    $('resultText').textContent=teacher?'אפשר לחזור לשאלות או לפתוח משחק אישי לסטודנטים.':`זיהית נכון ${state.right} מתוך ${QUESTIONS.length} נקודות אי־רציפות. צברת ${state.points} נקודות.`;
+    const wrong=state.responses.filter(a=>!a.correct);
+    $('recap').innerHTML=teacher?'':wrong.length?'<h3>שאלות שכדאי לחזור אליהן</h3>'+wrong.map(a=>{ const q=QUESTIONS.find(z=>z.id===a.q);return `<div class="recap-item"><strong>שאלה ${a.q}: אי־רציפות ${TYPES[q.type]}</strong><div>${esc(q.explanation)}</div></div>`; }).join(''):'<p style="text-align:center">מצוין! כל התשובות נכונות.</p>';
+    $('retry').textContent=teacher?'להתחיל שוב במצב הקרנה':'לשחק שוב';
+  }
+  function makePlot(q) {
+    const L=49,R=720,T=24,B=365, xmin=-3,xmax=3,ymin=-3.3,ymax=3.6;
+    const sx=x=>L+(x-xmin)/(xmax-xmin)*(R-L);
+    const sy=y=>B-(y-ymin)/(ymax-ymin)*(B-T);
+    const xn=x=>Number(sx(x).toFixed(2)), yn=y=>Number(sy(y).toFixed(2));
+    const line=(start,end,fn,steps=450)=>{
+      const parts=[];
+      for(let k=0;k<=steps;k++) {
+        const x=start+(end-start)*(k/steps), y=fn(x);
+        if(Number.isFinite(y)) parts.push(`${k===0?'M':'L'}${xn(x)} ${yn(y)}`);
+      }
+      return `<path d="${parts.join(' ')}"/>`;
+    };
+    const open=(x,y)=>`<circle cx="${xn(x)}" cy="${yn(y)}" r="7.8" fill="white" stroke="#2675cd" stroke-width="3.5"/>`;
+    const full=(x,y)=>`<circle cx="${xn(x)}" cy="${yn(y)}" r="6.8" fill="#2675cd" stroke="white" stroke-width="2.0"/>`;
+    let curves='',points='';
+    switch(q.shape) {
+      case 'parabola': {
+        const f=x=>0.28*(x-1)**2+0.6;
+        curves=line(-3,1,f)+line(1,3,f);
+        points=open(1,0.6)+full(1,2.8); break;
+      }
+      case 'jumpLines': {
+        curves=line(-3,0,x=>0.25*x+1.3)+line(0,3,x=>0.25*x-1.2);
+        points=open(0,1.3)+full(0,-1.2); break;
+      }
+      case 'oneOverX': {
+        curves=line(-3,-0.009,x=>1/x,720)+line(0.009,3,x=>1/x,720); break;
+      }
+      case 'lineHole': {
+        const f=x=>0.55*x+0.75;
+        curves=line(-3,-1,f)+line(-1,3,f);
+        points=open(-1,0.2)+full(-1,-1.25); break;
+      }
+      case 'jumpThirdPoint': {
+        curves=line(-3,1,x=>0.4*(x-1))+line(1,3,x=>1.5+0.2*(x-1));
+        points=open(1,0)+open(1,1.5)+full(1,-1.8); break;
+      }
+      case 'oscillation': {
+        curves=line(-3,-0.0015,x=>Math.sin(1/x),3000)+line(0.0015,3,x=>Math.sin(1/x),3000);
+        points=full(0,0);break;
+      }
+      case 'absoluteHole': {
+        const f=x=>Math.abs(x)+0.5;
+        curves=line(-3,0,f)+line(0,3,f);
+        points=open(0,0.5); break;
+      }
+      case 'step': {
+        curves=line(-3,-1,()=>1.5,70)+line(-1,3,()=>-0.5,70);
+        points=open(-1,1.5)+full(-1,-0.5); break;
+      }
+      case 'oneOverX2': {
+        curves=line(-3,-0.009,x=>1/(x*x),720)+line(0.009,3,x=>1/(x*x),720); break;
+      }
+    }
+    const grid=[];
+    for(let x=-3;x<=3;x++) {
+      grid.push(`<line x1="${xn(x)}" y1="${T}" x2="${xn(x)}" y2="${B}" stroke="${x===0?'#a5adc0':'#e5eaf4'}" stroke-width="${x===0?1.7:1}"/>`);
+      grid.push(`<text x="${xn(x)}" y="${B+23}" text-anchor="middle" font-size="13" fill="#606d81">${x}</text>`);
+    }
+    for(let y=-3;y<=3;y++) {
+      grid.push(`<line x1="${L}" y1="${yn(y)}" x2="${R}" y2="${yn(y)}" stroke="${y===0?'#a5adc0':'#e5eaf4'}" stroke-width="${y===0?1.7:1}"/>`);
+      if(y!==0) grid.push(`<text x="${L-13}" y="${yn(y)+4}" text-anchor="end" font-size="13" fill="#606d81">${y}</text>`);
+    }
+    return `<svg xmlns="http://www.w3.org/2000/svg" class="plot" viewBox="0 0 760 407" role="img" aria-label="גרף עם נקודה לבדיקה x שווה ${q.at}. ${esc(q.caption)}">
+      <defs><clipPath id="graphClip"><rect x="${L}" y="${T}" width="${R-L}" height="${B-T}"/></clipPath></defs>
+      <rect width="760" height="407" fill="#fcfdff"/><g font-family="Arial,sans-serif">${grid.join('')}
+      <g clip-path="url(#graphClip)"><line x1="${xn(q.at)}" y1="${T}" x2="${xn(q.at)}" y2="${B}" stroke="#a14fe2" stroke-width="2.6" stroke-dasharray="7 8"/>
+      <g fill="none" stroke="#2675cd" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">${curves}</g>${points}</g>
+      <rect x="${Math.min(xn(q.at)+10,R-70)}" y="${T+4}" rx="6" width="59" height="27" fill="#ede0fa" opacity=".94"/><text x="${Math.min(xn(q.at)+39,R-41)}" y="${T+23}" text-anchor="middle" font-size="16" font-weight="bold" fill="#7a38b4">x=${q.at}</text>
+      <text x="${R+15}" y="${yn(0)-10}" font-size="18" font-weight="bold" fill="#6c7790">x</text><text x="${xn(0)+10}" y="${T+9}" font-size="18" font-weight="bold" fill="#6c7790">y</text>
+      </g></svg>`;
+  }
+  window.quizShared={QUESTIONS,TYPES,makePlot,esc};
+  window.quizShow=show;
+  $('startLive').addEventListener('click',()=>show('liveSetup'));
+  $('startSolo').addEventListener('click',()=>start('solo'));
+  $('startPresent').addEventListener('click',()=>start('present'));
+  $('reveal').addEventListener('click',revealTeacher);
+  $('next').addEventListener('click',nextQuestion);
+  $('goHome').addEventListener('click',()=>{clearTimer();show('home');});
+  $('backHome').addEventListener('click',()=>show('home'));
+  $('retry').addEventListener('click',()=>start(state.mode));
+  $('fullscreen').addEventListener('click',()=>{ if(document.fullscreenElement) document.exitFullscreen?.(); else document.documentElement.requestFullscreen?.(); });
+  document.addEventListener('keydown', e=>{
+    if($('quiz').hidden || e.repeat || ['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+    if(state.mode==='present' && e.code==='Space') { e.preventDefault(); state.revealed?nextQuestion():revealTeacher(); }
+    if(state.mode==='solo' && !state.revealed && ['Digit1','Digit2','Digit3','Numpad1','Numpad2','Numpad3'].includes(e.code)) answer(Number(e.code.slice(-1))-1);
+    if(e.code==='ArrowLeft' && state.revealed) nextQuestion();
+  });
+  if(new URLSearchParams(location.search).get('mode')==='present') start('present');
+})();
+</script>
+<script type="module" src="./live.js"></script>
+</body>
+</html>
