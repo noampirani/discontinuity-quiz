@@ -7,6 +7,9 @@ import { firebaseConfig } from './firebase-config.js';
 const { QUESTIONS, TYPES, makePlot, esc } = window.quizShared;
 const $ = id => document.getElementById(id);
 const SESSION_KEY = 'continuity-quiz-live-session-v2';
+// כתובת המתרגל נפרדת; קישור QR לעולם אינו כולל teacher=1.
+const query = new URLSearchParams(location.search);
+const teacherMode = query.get('teacher') === '1' && !query.has('room');
 const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.databaseURL && firebaseConfig.appId && !Object.values(firebaseConfig).some(v => String(v).includes('PASTE_')));
 let db = null, auth = null, connectPromise = null;
@@ -31,7 +34,8 @@ const errorText = e => {
 };
 function setBusy(flag) {
   inProgress = flag;
-  for(const id of ['createRoom', 'joinRoom']) $(id).disabled = flag || !configured;
+  $('createRoom').disabled = flag || !configured || !teacherMode;
+  $('joinRoom').disabled = flag || !configured;
 }
 async function ensureConnection() {
   if(!configured) throw new Error('חסר קובץ הגדרות Firebase. ראו README.md (firebase-config.js וכללי מסד הנתונים).');
@@ -56,7 +60,7 @@ async function setupConnection() {
   $('liveConnectionMessage').textContent = 'מתחבר למערכת החדרים…';
   try {
     await ensureConnection();
-    $('liveConnectionMessage').textContent = '✅ מחובר! אפשר ליצור חדר או להצטרף לחדר קיים.';
+    $('liveConnectionMessage').textContent = teacherMode ? '✅ מחובר! אפשר ליצור חדר למתרגל.' : '✅ מחובר! אפשר להצטרף לחדר עם כינוי.';
     setupError('');
   } catch(e) {
     $('liveConnectionMessage').textContent = '⚠️ החיבור למערכת החדרים לא הושלם.';
@@ -64,7 +68,7 @@ async function setupConnection() {
   }
 }
 async function createRoom() {
-  if(inProgress) return;
+  if(inProgress || !teacherMode) return;
   setupError(''); setBusy(true);
   try {
     await ensureConnection();
@@ -119,6 +123,9 @@ function attachRoom(code,role) {
   $('liveRoleLabel').textContent=role==='host'?'🎓 מסך המתרגל':'📱 משחק כיתתי';
   $('liveInviteLink').textContent=codeURL(code);
   $('liveInviteLink').href=codeURL(code);
+  $('liveHostInvite').hidden=role!=='host';
+  $('liveCopyLink').hidden=role!=='host';
+  if(role==='host') renderQR(codeURL(code));
   roomError(''); $('liveStage').innerHTML='<p class="live-status">טוענים את פרטי החדר…</p>';
   window.quizShow('liveRoom');
   const roomBase = `rooms/${code}`;
@@ -137,6 +144,21 @@ function attachRoom(code,role) {
     live.answers=snapshot.val() || {}; renderLive();
   }, e=>roomError(errorText(e))));
   live.clock=setInterval(updateClock, 350);
+}
+function renderQR(url) {
+  const target=$('liveQRCode');
+  target.replaceChildren();
+  try {
+    if(typeof window.QRCode !== 'function') throw new Error('ספריית QR עדיין לא נטענה');
+    new window.QRCode(target, {text:url, width:170, height:170, colorDark:'#15172c', colorLight:'#ffffff', correctLevel:window.QRCode.CorrectLevel.M});
+  } catch(e) {
+    // גיבוי במקרה שספריית יצירת ה־QR חסומה ברשת הכיתה.
+    const img=document.createElement('img');
+    img.alt='סרקו כדי להצטרף למשחק'; img.width=170; img.height=170;
+    img.src='https://api.qrserver.com/v1/create-qr-code/?size=170x170&margin=0&data='+encodeURIComponent(url);
+    img.onerror=()=>{ target.textContent='לא הצלחנו לטעון QR. השתמשו בקישור או בקוד החדר.'; };
+    target.append(img);
+  }
 }
 const nowServer = () => Date.now() + live.serverOffset;
 function updateClock() {
@@ -167,18 +189,34 @@ function boardHTML(max=40) {
   const mine=rank.findIndex(p=>p.uid===live.uid);
   const visible=rank.slice(0,max);
   if(mine>=max) visible.push({...rank[mine], actualRank:mine+1});
-  return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}${i===0?' 🥇':i===1?' 🥈':i===2?' 🥉':''}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">100 נקודות לכל תשובה נכונה. הניקוד מתעדכן רק כשהתשובה נחשפת. שוויון בניקוד אפשרי.</p></div>`;
+  const revealedAny=live.meta?.phase==='finished' || live.meta?.phase==='revealed' || (live.meta?.index ?? 0)>0;
+  const podium=revealedAny && rank.length ? `<div class="live-podium" aria-label="שלושת המקומות הראשונים">${[
+    [1,'🥈','מקום שני'], [0,'🥇','מקום ראשון'], [2,'🥉','מקום שלישי']
+  ].map(([i,medal,label])=>rank[i]?`<div class="live-podium-spot place${i+1}"><span class="medal">${medal}</span><b>${label}</b><span class="winner-name" dir="auto">${esc(rank[i].name)}</span><span class="winner-score">${rank[i].score} נקודות</span></div>`:`<div class="live-podium-spot place${i+1}"><span class="medal">${medal}</span><span>${label}</span><span class="note">טרם נקבע</span></div>`).join('')}</div>`:'';
+  return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${podium}${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">100 נקודות לתשובה נכונה. הדירוג מתעדכן אחרי חשיפת התשובה; במקרה של תיקו הניקוד זהה.</p></div>`;
 }
-function countsForCurrent() {
-  const votes=Object.entries(live.answers[`q${live.meta.index}`] || {}).filter(([uid])=>Boolean(live.players[uid]));
+function countsFor(index) {
+  const votes=Object.entries(live.answers[`q${index}`] || {}).filter(([uid,answer])=>Boolean(live.players[uid]) && Number.isInteger(answer?.choice) && answer.choice>=0 && answer.choice<TYPES.length);
   const counts=TYPES.map((_,j)=>votes.filter(([,x])=>x.choice===j).length);
-  return {counts, voted:votes.length};
+  const correct=counts[QUESTIONS[index].type], voted=votes.length;
+  const total=Object.keys(live.players).length;
+  return {counts, correct, wrong:voted-correct, unanswered:Math.max(0,total-voted), voted, total};
 }
 function statsHTML(showCorrect=false) {
-  const {counts,voted}=countsForCurrent();
-  const correct=QUESTIONS[live.meta.index]?.type;
-  const total=Object.keys(live.players).length;
-  return `<div class="live-board"><strong>תשובות שהתקבלו: ${voted} מתוך ${total}</strong><div class="live-stats">${counts.map((n,i)=>`<div class="live-stat ${showCorrect && i===correct?'winner':''}"><span>${esc(TYPES[i])}</span><div class="live-track"><div class="live-fill" style="width:${voted?Math.round(n*100/voted):0}%"></div></div><b>${n}</b></div>`).join('')}</div>${!showCorrect?'<p class="note">העמודות גלויות למתרגל בלבד עד לחשיפה.</p>':''}</div>`;
+  const {counts,correct,wrong,unanswered,voted,total}=countsFor(live.meta.index);
+  const solution=QUESTIONS[live.meta.index].type;
+  const tally=showCorrect?`<div class="live-summary">
+    <div class="live-tally right"><span>✅ צדקו</span><b>${correct}</b></div>
+    <div class="live-tally wrong"><span>❌ טעו</span><b>${wrong}</b></div>
+    <div class="live-tally missing"><span>⌛ לא ענו</span><b>${unanswered}</b></div>
+  </div><p class="live-meta">${voted?Math.round(correct*100/voted):0}% מהמשיבים ענו נכון.</p>`:'';
+  return `<div class="live-board"><strong>${showCorrect?'📊 תוצאות השאלה':'🗳️ הצבעות בזמן אמת'}: ${voted} מתוך ${total} ענו</strong>${tally}<div class="live-stats">${counts.map((n,i)=>`<div class="live-stat ${showCorrect && i===solution?'winner':''}"><span>${esc(TYPES[i])}${showCorrect&&i===solution?' ✓':''}</span><div class="live-track"><div class="live-fill" style="width:${voted?Math.round(n*100/voted):0}%"></div></div><b>${n}</b></div>`).join('')}</div>${!showCorrect?'<p class="note">ההתפלגות גלויה למתרגל בלבד עד לחשיפת התשובה.</p>':''}</div>`;
+}
+function allQuestionStatsHTML() {
+  return `<div class="live-board"><h3>📊 סיכום הכיתה — שאלה אחר שאלה</h3>${QUESTIONS.map((q,i)=>{
+    const x=countsFor(i);
+    return `<div class="live-correct-row"><b>שאלה ${i+1}: ${esc(TYPES[q.type])}</b><span>✅ ${x.correct} צדקו · ❌ ${x.wrong} טעו · ⏳ ${x.unanswered} לא ענו</span></div>`;
+  }).join('')}</div>`;
 }
 function hostControls() {
   const phase=live.meta.phase;
@@ -193,20 +231,20 @@ function stageMarkup() {
     return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
   }
   if(m.phase==='finished') {
-    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">תשע שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
+    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">תשע שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div id="liveBoardPlace"></div><div id="liveAllStats"></div>`;
   }
   const q=QUESTIONS[m.index];
   if(!q) return '<div class="live-panel">מספר שאלה לא תקין.</div>';
-  const studentAnswer = live.answers[`q${m.index}`]?.[live.uid]?.choice;
   return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${QUESTIONS.length}</span><span class="live-badge" id="liveCountdown">${m.timerEnabled?'⏳ 30 שניות':'ללא הגבלת זמן'}</span></div>
     <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/QUESTIONS.length}%"></div></div>
     <div class="quiz-layout">
       <div class="graph-card"><div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div><div class="plot-wrap">${makePlot(q)}</div>
       <div class="legend"><span><i class="symbol"></i> עיגול ריק</span><span><i class="symbol filled"></i> ערך הפונקציה</span><span><i class="symbol line"></i> הנקודה לבדיקה</span></div></div>
       <div class="answer-card"><h2 class="question">מהו סוג אי־הרציפות ב־x = ${q.at}?</h2>
-        ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו את סוג אי־הרציפות. רק תשובה אחת נקלטת.</p>'}
+        ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
         ${host?'<div id="liveStats"></div>':`<div id="liveStudentChoices">${TYPES.map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>אי־רציפות ${esc(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
+        ${!host?'<div id="liveStudentStats"></div>':''}
         ${host?hostControls():''}
       </div>
     </div><div id="liveBoardPlace"></div>`;
@@ -219,6 +257,7 @@ function renderLive() {
     $('liveStage').innerHTML=stageMarkup();
   }
   const m=live.meta;
+  $('liveHostInvite').hidden=live.role!=='host' || m.phase!=='lobby';
   if(m.phase==='lobby') {
     const names=$('liveNames');
     if(names) names.innerHTML=`<div class="live-names">${Object.values(live.players).map(p=>`<span class="live-name" dir="auto">${esc(p.name||'ללא כינוי')}</span>`).join('')}</div>`;
@@ -228,12 +267,17 @@ function renderLive() {
   if(['question','revealed'].includes(m.phase)) {
     if(live.role==='host') {
       const elem=$('liveStats'); if(elem) elem.innerHTML=statsHTML(m.phase==='revealed');
-    } else refreshStudentChoices();
+    } else {
+      refreshStudentChoices();
+      const elem=$('liveStudentStats'); if(elem) elem.innerHTML=m.phase==='revealed'?statsHTML(true):'';
+    }
     const explain=$('liveRevealFeedback');
     if(explain) explain.innerHTML=m.phase==='revealed'?`<div class="feedback good"><strong>התשובה: אי־רציפות ${esc(TYPES[QUESTIONS[m.index].type])}</strong>${esc(QUESTIONS[m.index].explanation)}</div>`:'';
   }
   const board=$('liveBoardPlace');
   if(board) board.innerHTML=boardHTML();
+  const all=$('liveAllStats');
+  if(all) all.innerHTML=allQuestionStatsHTML();
   updateClock();
 }
 function refreshStudentChoices() {
@@ -243,16 +287,16 @@ function refreshStudentChoices() {
   const expired=m.timerEnabled && nowServer() > m.deadline;
   $('liveStudentChoices')?.querySelectorAll('[data-choice]').forEach(button => {
     const i=Number(button.dataset.choice);
-    button.disabled = hasAnswer || expired || m.phase!=='question' || inProgress;
+    button.disabled = expired || m.phase!=='question' || inProgress;
     button.classList.toggle('correct',m.phase==='revealed'&&i===QUESTIONS[m.index].type);
     button.classList.toggle('incorrect',m.phase==='revealed'&&hasAnswer&&i===answer&&answer!==QUESTIONS[m.index].type);
-    if(hasAnswer && i===answer && m.phase==='question') button.style.borderColor='#d2bcff';
+    button.classList.toggle('selected',hasAnswer && i===answer && m.phase==='question');
   });
   const message=$('liveAnswerReceipt');
   if(message) {
     const correct=QUESTIONS[m.index].type;
     message.innerHTML=m.phase==='revealed'?(hasAnswer?`<div class="live-status ${answer===correct?'good':'warn'}">${answer===correct?'✅ צדקת! קיבלת 100 נקודות.':'התשובה לא הייתה נכונה הפעם.'}</div>`:'<div class="live-status">לא התקבלה תשובה לשאלה זו.</div>'):
-      hasAnswer?`<div class="live-status good">✅ קלטנו את התשובה שלך: <b>${esc(TYPES[answer])}</b>. ממתינים לחשיפה.</div>`:
+      hasAnswer?`<div class="live-status good">✅ הבחירה הנוכחית שלך: <b>${esc(TYPES[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}.</div>`:
       expired?'<div class="live-status warn">⏰ הזמן נגמר. ממתינים לחשיפת התשובה.</div>':'';
   }
 }
@@ -274,7 +318,7 @@ async function sendAnswer(choice) {
   const m=live.meta;
   if(live.role!=='student'||inProgress||m?.phase!=='question'||(m.timerEnabled && nowServer()>m.deadline)) return;
   if(!Number.isInteger(choice)||choice<0||choice>2) return;
-  if(live.answers[`q${m.index}`]?.[live.uid]) return;
+  if(live.answers[`q${m.index}`]?.[live.uid]?.choice===choice) return;
   inProgress=true; roomError(''); refreshStudentChoices();
   try { await set(ref(db,`rooms/${live.code}/answers/q${m.index}/${live.uid}`),{choice,at:serverTimestamp()}); }
   catch(e) { roomError(errorText(e)); }
@@ -289,6 +333,7 @@ async function closeRoom() {
 async function resumeSession() {
   const saved=safeLoad();
   if(!saved?.code||!saved?.role||!saved.uid) return false;
+  if(saved.role==='host' && !teacherMode) return false;
   try {
     await ensureConnection();
     if(saved.uid!==live.uid) { safeStore(null); return false; }
@@ -300,6 +345,11 @@ async function resumeSession() {
     attachRoom(saved.code,saved.role); return true;
   } catch(e) { setupError(errorText(e)); return false; }
 }
+// במסך סטודנט אין כניסה כמתרגל. מסך המתרגל נפתח רק בקישור נפרד ?teacher=1.
+$('liveHostPanel').hidden=!teacherMode;
+$('liveStudentPanel').hidden=teacherMode;
+$('liveSetupIntro').textContent=teacherMode ? 'יצירת חדר להקרנה בכיתה. הסטודנטים מצטרפים בסריקת קוד QR או דרך קישור ההזמנה.' : 'הקלידו כינוי וקוד חדר כדי להצטרף למשחק. אין צורך בחשבון.';
+$('startLive').textContent=teacherMode ? '🎓 פתיחת חדר למתרגל' : '🏆 הצטרפות למשחק כיתתי';
 $('createRoom').addEventListener('click',createRoom);
 $('joinRoom').addEventListener('click',joinRoom);
 $('liveNickname').addEventListener('keydown',e=>{if(e.key==='Enter') joinRoom();});
@@ -331,12 +381,13 @@ $('liveStage').addEventListener('click',async e=>{
 });
 
 // כניסה מקישור הזמנה, או חזרה לחדר אחרי רענון של הדף.
-const requestedCode=cleanCode(new URLSearchParams(location.search).get('room'));
+const requestedCode=cleanCode(query.get('room'));
 if(requestedCode) { $('liveJoinCode').value=requestedCode; window.quizShow('liveSetup'); }
+else if(teacherMode) window.quizShow('liveSetup');
 if(!configured) { setBusy(false); setupConnection(); }
 else {
   const saved=safeLoad();
-  if(requestedCode || saved) {
+  if(requestedCode || saved || teacherMode) {
     window.quizShow('liveSetup');
     setupConnection().then(async()=>{
       if(!requestedCode || saved?.code===requestedCode) await resumeSession();

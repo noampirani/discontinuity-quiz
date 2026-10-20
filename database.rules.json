@@ -6,13 +6,14 @@
         ".write": "auth != null && ((!data.exists() && newData.child('meta').child('hostUid').val() === auth.uid && newData.child('meta').child('phase').val() === 'lobby') || (data.exists() && data.child('meta').child('hostUid').val() === auth.uid))",
         "players": {
           "$uid": {
-            ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms').child($code).child('meta').child('phase').val() !== 'finished' && newData.hasChildren(['name', 'joinedAt']) && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 20 && newData.child('joinedAt').isNumber()"
+            ".write": "auth !== null && auth.uid === $uid && !data.exists() && root.child('rooms').child($code).child('meta').child('hostUid').exists() && root.child('rooms').child($code).child('meta').child('phase').val() !== 'finished'",
+            ".validate": "newData.hasChildren(['name', 'joinedAt']) && newData.child('name').isString() && newData.child('name').val().length > 0 && newData.child('name').val().length <= 20"
           }
         },
         "answers": {
           "$question": {
             "$uid": {
-              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists() && root.child('rooms').child($code).child('meta').child('phase').val() === 'question' && root.child('rooms').child($code).child('meta').child('questionKey').val() === $question && (root.child('rooms').child($code).child('meta').child('timerEnabled').val() !== true || now <= root.child('rooms').child($code).child('meta').child('deadline').val()) && newData.hasChildren(['choice','at']) && newData.child('choice').isNumber() && newData.child('choice').val() >= 0 && newData.child('choice').val() <= 2 && newData.child('at').isNumber()"
+              ".write": "auth != null && auth.uid === $uid && newData.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists() && root.child('rooms').child($code).child('meta').child('phase').val() === 'question' && root.child('rooms').child($code).child('meta').child('questionKey').val() === $question && (root.child('rooms').child($code).child('meta').child('timerEnabled').val() !== true || now <= root.child('rooms').child($code).child('meta').child('deadline').val()) && newData.hasChildren(['choice','at']) && newData.child('choice').isNumber() && newData.child('choice').val() >= 0 && newData.child('choice').val() <= 2"
             }
           }
         }

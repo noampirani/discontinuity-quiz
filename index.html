@@ -48,7 +48,33 @@
     .live-actions { display:flex; flex-wrap:wrap; gap:10px; margin:13px 0; }
     .live-actions button:disabled,.choice:disabled { cursor:default; }
     .live-loading { opacity:.68; pointer-events:none; }
-    @media(max-width:800px) { .live-split { grid-template-columns:1fr; } .live-panel { padding:15px; } .live-rank { grid-template-columns:52px minmax(0,1fr) auto; } }
+    .live-split.single-mode { grid-template-columns:minmax(0,680px); justify-content:center; }
+    .live-split > [hidden], [hidden] { display:none !important; }
+    .host-invite { display:grid; grid-template-columns:minmax(0,1fr) 186px; align-items:center; gap:20px; padding:19px; background:#292f4e; border:1px solid #68749a; border-radius:19px; margin:12px 0 20px; }
+    .host-invite h2 { margin:0 0 7px; font-size:22px; }
+    .host-qr { background:white; padding:8px; border-radius:12px; display:grid; place-items:center; width:186px; height:186px; }
+    .host-qr canvas,.host-qr img { display:block; max-width:100%; height:auto; }
+    .live-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin:13px 0; }
+    .live-tally { padding:13px 8px; border-radius:13px; background:#303955; border:1px solid #4a5a7b; text-align:center; }
+    .live-tally b { display:block; font-size:clamp(24px,3.2vw,32px); margin-top:5px; }
+    .live-tally.right { border-color:#4bddad; }
+    .live-tally.wrong { border-color:#ff8197; }
+    .live-tally.missing { border-color:#f0c46c; }
+    .live-tally span { font-size:13px; color:#d4dcf0; }
+    .live-podium { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-items:end; gap:10px; margin:15px 0 21px; direction:ltr; }
+    .live-podium-spot { direction:rtl; border:1px solid #56627f; background:#303955; border-radius:18px 18px 12px 12px; padding:14px 9px; min-height:125px; text-align:center; display:flex; flex-direction:column; justify-content:center; gap:7px; min-width:0; }
+    .live-podium-spot.place1 { border-color:#f4cc79; background:linear-gradient(180deg,#58492d,#313453); min-height:162px; }
+    .live-podium-spot.place2 { border-color:#ccd7ed; }
+    .live-podium-spot.place3 { border-color:#c69b80; }
+    .live-podium-spot .medal { font-size:34px; line-height:1; }
+    .live-podium-spot .winner-name { font-weight:800; overflow-wrap:anywhere; }
+    .live-podium-spot .winner-score { font-variant-numeric:tabular-nums; color:#e5e7ff; }
+    .live-correct-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-top:1px solid #455173; flex-wrap:wrap; }
+    .choice.selected { border-color:#e0c8ff; background:#49416d; box-shadow:inset 0 0 0 1px #b79dff; }
+    .choice.selected::after { content:'✓ נבחרה'; margin-inline-start:auto; font-size:12px; color:#e4d9ff; }
+    .choice.selected.correct::after,.choice.selected.incorrect::after { display:none; }
+
+    @media(max-width:800px) { .live-split { grid-template-columns:1fr; } .live-panel { padding:15px; } .live-rank { grid-template-columns:52px minmax(0,1fr) auto; } .host-invite { grid-template-columns:1fr; } .host-qr { margin:auto; } .live-podium { gap:5px; } .live-podium-spot { padding:10px 5px; } }
 
     .intro { display:grid; grid-template-columns:1.1fr .9fr; gap:24px; align-items:center; min-height:calc(100vh - 165px); }
     .kicker { color:var(--turq); font-size:13px; font-weight:800; letter-spacing:1px; }
@@ -123,9 +149,9 @@
         <h1>רגע, מה קרה<br><span class="highlight">לפונקציה?</span></h1>
         <p class="lead">מסתכלים על הגרף, בודקים מה קורה משני צדי הנקודה, ובוחרים: אי־רציפות <b>סליקה</b>, <b>קפיצה</b> או <b>עיקרית</b>.</p>
         <div class="chips"><span class="chip">◯ סליקה</span><span class="chip">↕ קפיצה</span><span class="chip">〰 עיקרית</span></div>
-        <div class="intro-actions"><button class="btn primary" id="startLive">🏆 &nbsp; משחק כיתתי חי + דירוג</button><button class="btn secondary" id="startSolo">▶ &nbsp; משחק אישי</button><button class="btn secondary" id="startPresent">▣ &nbsp; הקרנה ללא חיבור</button></div>
+        <div class="intro-actions"><button class="btn primary" id="startLive">🏆 &nbsp; הצטרפות למשחק כיתתי</button><button class="btn secondary" id="startSolo">▶ &nbsp; משחק אישי</button><button class="btn secondary" id="startPresent">▣ &nbsp; הקרנה ללא חיבור</button></div>
         <label class="toggle"><input type="checkbox" id="useTimer" checked><span>שעון של 30 שניות לכל שאלה (במשחק אישי)</span></label>
-        <p class="note">במשחק כיתתי מתחברים עם כינוי וקוד חדר. המתרגל מנהל את השאלות וכולם רואים Leaderboard. משחק אישי ומצב הקרנה עובדים גם בלי Firebase.</p>
+        <p class="note">סטודנטים מתחברים בכינוי וקוד חדר ורואים את הדירוג. המשחק האישי ומצב ההקרנה עובדים גם בלי Firebase.</p>
       </div>
       <div class="intro-art" aria-hidden="true">
         <div class="mini-head"><span>חידת דוגמה</span><span style="color:#ffc967">01 / 09</span></div>
@@ -169,17 +195,17 @@
     </section>
     <section id="liveSetup" class="screen" hidden>
       <div class="live-head"><h1 style="font-size:clamp(30px,5vw,44px);margin:8px 0">🏆 משחק כיתתי חי</h1><button class="btn secondary small" id="liveSetupBack">← חזרה</button></div>
-      <p class="lead">המתרגל פותח חדר, הסטודנטים נכנסים עם כינוי, וכולם צוברים נקודות בטבלת מובילים משותפת.</p>
+      <p class="lead" id="liveSetupIntro">מצטרפים עם כינוי וקוד חדר, וצוברים נקודות בטבלת המובילים המשותפת.</p>
       <div id="liveConnectionMessage" class="live-status" role="status">בודק חיבור ל־Firebase…</div>
-      <div class="live-split">
-        <div class="live-panel">
+      <div class="live-split single-mode" id="liveSetupSplit">
+        <div class="live-panel" id="liveHostPanel" hidden>
           <h2>👩‍🏫 למתרגל</h2>
           <p class="live-meta">יוצרים חדר ומציגים את הקוד בכיתה. רק המתרגל יכול להתחיל, לחשוף ולדלג.</p>
           <label class="toggle"><input type="checkbox" id="liveUseTimer" checked> שעון של 30 שניות לשאלה</label>
           <div class="live-actions"><button class="btn primary" id="createRoom">יצירת חדר חדש</button></div>
         </div>
-        <div class="live-panel">
-          <h2>📱 לסטודנט/ית</h2>
+        <div class="live-panel" id="liveStudentPanel">
+          <h2>📱 הצטרפות למשחק</h2>
           <label for="liveNickname">כינוי להצגה בלוח התוצאות</label>
           <input class="live-field" id="liveNickname" type="text" maxlength="20" autocomplete="nickname" placeholder="למשל: גאוס" dir="auto">
           <label for="liveJoinCode">קוד החדר</label>
@@ -193,9 +219,12 @@
 
     <section id="liveRoom" class="screen" hidden>
       <div class="live-head"><div><span class="kicker" id="liveRoleLabel">משחק כיתתי</span><div><span class="room-code" id="liveRoomCode">———</span></div></div>
-        <div class="live-actions"><button class="btn secondary small" id="liveCopyLink">העתק קישור הזמנה</button><button class="btn secondary small" id="liveLeave">יציאה למסך הראשי</button></div>
+        <div class="live-actions"><button class="btn secondary small" id="liveCopyLink" hidden>העתק קישור הזמנה</button><button class="btn secondary small" id="liveLeave">יציאה למסך הראשי</button></div>
       </div>
-      <a class="room-link" id="liveInviteLink" target="_blank" rel="noopener"></a>
+      <div class="host-invite" id="liveHostInvite" hidden>
+        <div><h2>📲 סרקו והצטרפו למשחק!</h2><p class="live-meta">הקרינו את הקוד הזה בכיתה. הסטודנטים יסרקו, יבחרו כינוי וייכנסו ישר למסך ההצטרפות — בלי אפשרות לפתוח חדר.</p><a class="room-link" id="liveInviteLink" target="_blank" rel="noopener"></a><p class="note">אפשר גם להיכנס מהכתובת הרגילה ולהקליד את קוד החדר.</p></div>
+        <div class="host-qr" id="liveQRCode" aria-label="קוד QR להצטרפות למשחק"></div>
+      </div>
       <div id="liveRoomError" class="live-error" role="alert"></div>
       <div id="liveStage" aria-live="polite"></div>
     </section>
@@ -403,6 +432,7 @@
   if(new URLSearchParams(location.search).get('mode')==='present') start('present');
 })();
 </script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <script type="module" src="./live.js"></script>
 </body>
 </html>
