@@ -70,7 +70,7 @@
     .live-podium-spot .winner-name { font-weight:800; overflow-wrap:anywhere; }
     .live-podium-spot .winner-score { font-variant-numeric:tabular-nums; color:#e5e7ff; }
     .live-correct-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-top:1px solid #455173; flex-wrap:wrap; }
-    /* תוצאות הכיתה קודם, ופודיום מאוחר יותר — במלוא רוחב המקרן. */
+    /* תוצאות הכיתה נשארות עד לחיצת המתרגל; אז מציגים את הפודיום. */
     .live-results-page { animation:live-result-enter .48s ease-out both; max-width:980px; margin:12px auto; }
     .live-results-hero { text-align:center; margin:8px 0 18px; }
     .live-results-hero h2 { font-size:clamp(31px,5vw,56px); margin:8px 0; line-height:1.15; }
@@ -192,7 +192,7 @@
 
     <section id="quiz" class="screen" hidden>
       <div class="quizbar">
-        <div class="quizmeta"><span class="metric" id="questionNumber">שאלה 1 מתוך 9</span><span class="metric" id="pointsDisplay">ניקוד: <b>0</b></span><span class="metric timer" id="timerDisplay">⏳ 30</span></div>
+        <div class="quizmeta"><span class="metric" id="questionNumber">שאלה 1 מתוך 10</span><span class="metric" id="pointsDisplay">ניקוד: <b>0</b></span><span class="metric timer" id="timerDisplay">⏳ 30</span></div>
         <div style="display:flex;gap:9px;align-items:center"><button id="fullscreen" class="btn secondary small">⛶ מסך מלא</button><button id="goHome" class="btn secondary small">יציאה</button></div>
       </div>
       <div class="progress"><div id="progressFill"></div></div>
@@ -469,6 +469,6 @@
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
-<script type="module" src="./live.js?v=reset-10questions-1"></script>
+<script type="module" src="./live.js?v=manual-leaderboard-1"></script>
 </body>
 </html>
