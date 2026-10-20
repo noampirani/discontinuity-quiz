@@ -12,7 +12,7 @@
         "answers": {
           "$question": {
             "$uid": {
-              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists() && root.child('rooms').child($code).child('meta').child('phase').val() === 'question' && root.child('rooms').child($code).child('meta').child('questionKey').val() === $question && (!root.child('rooms').child($code).child('meta').child('timerEnabled').val() || now <= root.child('rooms').child($code).child('meta').child('deadline').val()) && newData.hasChildren(['choice','at']) && newData.child('choice').isNumber() && newData.child('choice').val() >= 0 && newData.child('choice').val() <= 2 && newData.child('at').isNumber()"
+              ".write": "auth != null && auth.uid === $uid && !data.exists() && root.child('rooms').child($code).child('players').child(auth.uid).exists() && root.child('rooms').child($code).child('meta').child('phase').val() === 'question' && root.child('rooms').child($code).child('meta').child('questionKey').val() === $question && (root.child('rooms').child($code).child('meta').child('timerEnabled').val() !== true || now <= root.child('rooms').child($code).child('meta').child('deadline').val()) && newData.hasChildren(['choice','at']) && newData.child('choice').isNumber() && newData.child('choice').val() >= 0 && newData.child('choice').val() <= 2 && newData.child('at').isNumber()"
             }
           }
         }
