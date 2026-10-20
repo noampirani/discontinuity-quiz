@@ -70,6 +70,33 @@
     .live-podium-spot .winner-name { font-weight:800; overflow-wrap:anywhere; }
     .live-podium-spot .winner-score { font-variant-numeric:tabular-nums; color:#e5e7ff; }
     .live-correct-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 0; border-top:1px solid #455173; flex-wrap:wrap; }
+    /* תוצאות הכיתה קודם, ופודיום מאוחר יותר — במלוא רוחב המקרן. */
+    .live-results-page { animation:live-result-enter .48s ease-out both; max-width:980px; margin:12px auto; }
+    .live-results-hero { text-align:center; margin:8px 0 18px; }
+    .live-results-hero h2 { font-size:clamp(31px,5vw,56px); margin:8px 0; line-height:1.15; }
+    .live-answer-label { color:#e6e0ff; font-size:clamp(18px,2.6vw,27px); margin:6px 0; }
+    .live-answer-label strong { color:#75eac6; }
+    .live-results-summary .live-board { padding:clamp(15px,2.6vw,27px); }
+    .live-results-summary .live-board > strong { display:block; text-align:center; font-size:clamp(17px,2.1vw,23px); }
+    .live-results-summary .live-summary { gap:clamp(8px,1.8vw,20px); margin:20px 0; }
+    .live-results-summary .live-tally { padding:clamp(13px,2vw,24px) 8px; }
+    .live-results-summary .live-tally span { font-size:clamp(15px,2vw,22px); font-weight:700; }
+    .live-results-summary .live-tally b { font-size:clamp(45px,7vw,85px); line-height:1.2; }
+    .live-results-summary .live-stat { grid-template-columns:minmax(76px,132px) minmax(0,1fr) 42px; font-size:clamp(14px,1.8vw,18px); }
+    .live-results-summary .live-track { height:21px; }
+    .live-results-explanation { text-align:center; font-size:clamp(15px,1.9vw,19px); color:#e4e5f8; line-height:1.65; max-width:850px; margin:15px auto; }
+    .live-coming-next { text-align:center; font-weight:800; color:#ffe6ad; font-size:clamp(18px,2.5vw,23px); margin:18px 0; }
+    .live-results-ribbon { display:flex; flex-wrap:wrap; justify-content:center; gap:12px 24px; font-weight:800; font-size:clamp(16px,2.3vw,22px); color:#e5eaff; margin:12px auto 17px; }
+    .live-results-ribbon span { border:1px solid #53617e; border-radius:999px; background:#29334f; padding:8px 14px; }
+    .live-results-leaderboard .live-board { max-width:850px; margin:17px auto; }
+    .live-results-leaderboard .live-podium-spot { min-height:158px; }
+    .live-results-leaderboard .live-podium-spot.place1 { min-height:203px; }
+    .live-results-leaderboard .live-podium-spot .medal { font-size:clamp(36px,5.7vw,62px); }
+    .live-results-leaderboard .winner-name { font-size:clamp(17px,2.1vw,23px); }
+    .live-reveal-actions { justify-content:center; margin:18px auto 30px; }
+    @keyframes live-result-enter { from { opacity:0; transform:translateY(18px) scale(.99); } to { opacity:1; transform:none; } }
+    @media(max-width:600px) { .live-results-summary .live-tally b { font-size:40px; } .live-results-summary .live-tally span { font-size:13px; } .live-results-summary .live-stat { grid-template-columns:76px minmax(0,1fr) 27px; gap:7px; } }
+    @media(prefers-reduced-motion:reduce) { .live-results-page { animation:none; } }
     .choice.selected { border-color:#e0c8ff; background:#49416d; box-shadow:inset 0 0 0 1px #b79dff; }
     .choice.selected::after { content:'✓ נבחרה'; margin-inline-start:auto; font-size:12px; color:#e4d9ff; }
     .choice.selected.correct::after,.choice.selected.incorrect::after { display:none; }
@@ -433,6 +460,6 @@
 })();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
-<script type="module" src="./live.js"></script>
+<script type="module" src="./live.js?v=results-2"></script>
 </body>
 </html>

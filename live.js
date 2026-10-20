@@ -7,6 +7,8 @@ import { firebaseConfig } from './firebase-config.js';
 const { QUESTIONS, TYPES, makePlot, esc } = window.quizShared;
 const $ = id => document.getElementById(id);
 const SESSION_KEY = 'continuity-quiz-live-session-v2';
+// כמה זמן מוצגות התוצאות הכיתתיות לפני המעבר האוטומטי לפודיום.
+const RESULTS_DELAY_MS = 5000;
 // כתובת המתרגל נפרדת; קישור QR לעולם אינו כולל teacher=1.
 const query = new URLSearchParams(location.search);
 const teacherMode = query.get('teacher') === '1' && !query.has('room');
@@ -14,7 +16,7 @@ const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.databaseURL && firebaseConfig.appId && !Object.values(firebaseConfig).some(v => String(v).includes('PASTE_')));
 let db = null, auth = null, connectPromise = null;
 let inProgress = false;
-const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', clock: null, serverOffset: 0, autoReveal: false };
+const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', revealView: '', fallbackRevealedAt: 0, clock: null, serverOffset: 0, autoReveal: false };
 
 const cleanCode = v => String(v || '').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
 const codeURL = code => { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('room', code); return u.href; };
@@ -114,7 +116,7 @@ async function joinRoom() {
 function detachRoom() {
   for(const unsub of live.unsubs.splice(0)) try { unsub(); } catch {}
   if(live.clock) { clearInterval(live.clock); live.clock = null; }
-  live.code=''; live.role=''; live.meta=null; live.players={}; live.answers={}; live.stageKey=''; live.autoReveal=false;
+  live.code=''; live.role=''; live.meta=null; live.players={}; live.answers={}; live.stageKey=''; live.revealView=''; live.fallbackRevealedAt=0; live.autoReveal=false;
 }
 function attachRoom(code,role) {
   detachRoom();
@@ -163,6 +165,7 @@ function renderQR(url) {
 const nowServer = () => Date.now() + live.serverOffset;
 function updateClock() {
   const meta=live.meta;
+  if(meta?.phase==='revealed') { refreshRevealView(); return; }
   if(!meta || meta.phase !== 'question' || !meta.timerEnabled) return;
   const remaining=Math.max(0,Math.ceil((meta.deadline-nowServer())/1000));
   const span=$('liveCountdown');
@@ -218,11 +221,70 @@ function allQuestionStatsHTML() {
     return `<div class="live-correct-row"><b>שאלה ${i+1}: ${esc(TYPES[q.type])}</b><span>✅ ${x.correct} צדקו · ❌ ${x.wrong} טעו · ⏳ ${x.unanswered} לא ענו</span></div>`;
   }).join('')}</div>`;
 }
+// התצוגה מסונכרנת בין כל המשתתפים לפי חותמת הזמן של Firebase,
+// ולא לפי שעון שהתחיל לכל מכשיר בנפרד. גם מי שמרענן יצטרף לשלב הנכון.
+function isBoardVisible() {
+  const m=live.meta;
+  if(m?.phase!=='revealed') return false;
+  if(m.showBoard===true) return true;
+  const start=Number(m.revealedAt) || live.fallbackRevealedAt;
+  return start>0 && nowServer()-start>=RESULTS_DELAY_MS;
+}
+function resultsSummaryHTML() {
+  const m=live.meta, q=QUESTIONS[m.index];
+  const mine=live.answers[`q${m.index}`]?.[live.uid]?.choice;
+  const selfMessage=live.role==='student' ? (!Number.isInteger(mine) ? '⌛ לא התקבלה תשובה שלך בשאלה הזו.' : mine===q.type ? '✅ כל הכבוד! תשובה נכונה — 100 נקודות.' : '❌ הפעם התשובה שלך לא הייתה נכונה.') : '';
+  return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
+    <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>📊 איך ענתה הכיתה?</h2>
+      <p class="live-answer-label">התשובה הנכונה: <strong>אי־רציפות ${esc(TYPES[q.type])}</strong></p></div>
+    <div id="liveResultsStats">${statsHTML(true)}</div>
+    <p class="live-results-explanation">${esc(q.explanation)}</p>
+    ${selfMessage?`<p class="live-status good">${selfMessage}</p>`:''}
+    <p class="live-coming-next" id="liveBoardCountdown" role="status">🏆 בעוד רגע נראה את טבלת המובילים…</p>
+  </div>`;
+}
+function resultsLeaderboardHTML() {
+  const m=live.meta, counts=countsFor(m.index);
+  return `<div class="live-results-page live-results-leaderboard" role="region" aria-label="טבלת מובילים">
+    <div class="live-results-hero"><div class="kicker">אחרי שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. 100 נקודות לכל תשובה נכונה.</p></div>
+    <div class="live-results-ribbon"><span>✅ ${counts.correct} צדקו</span><span>❌ ${counts.wrong} טעו</span><span>⌛ ${counts.unanswered} לא ענו</span></div>
+    ${boardHTML()}
+  </div>`;
+}
+function refreshRevealView(refreshData=false) {
+  if(live.meta?.phase!=='revealed') return;
+  const container=$('liveRevealContent');
+  if(!container) return;
+  const view=isBoardVisible()?'board':'stats';
+  const changed=view!==live.revealView;
+  if(changed) {
+    live.revealView=view;
+    container.innerHTML=view==='board'?resultsLeaderboardHTML():resultsSummaryHTML();
+    const controls=$('liveRevealControls');
+    if(controls && live.role==='host') controls.innerHTML=hostControls();
+  }
+  // אם נוספים משתתפים או תשובות מגיעות באיחור, מתעדכנים בלי לאפס את הטיימר.
+  if(view==='stats') {
+    const stats=$('liveResultsStats');
+    if(stats && !changed && refreshData) stats.innerHTML=statsHTML(true);
+    const label=$('liveBoardCountdown');
+    if(label) {
+      const from=Number(live.meta.revealedAt) || live.fallbackRevealedAt;
+      const remaining=Math.max(1,Math.ceil((RESULTS_DELAY_MS-(nowServer()-from))/1000));
+      label.textContent=`🏆 טבלת המובילים תופיע בעוד ${remaining} שניות…`;
+    }
+  }
+  // מעדכן גם את הדירוג אם Firebase שלח נתוני שחקנים חדשים.
+  else {
+    const board=container.querySelector('.live-board');
+    if(board && !changed && refreshData) board.outerHTML=boardHTML();
+  }
+}
 function hostControls() {
   const phase=live.meta.phase;
   if(phase==='lobby') return `<div class="live-actions"><button class="btn primary" data-action="start">התחל משחק — שאלה 1 ←</button></div>`;
   if(phase==='question') return '<div class="live-actions"><button class="btn primary" data-action="reveal">חשוף תשובה וניקוד</button></div>';
-  if(phase==='revealed') return `<div class="live-actions"><button class="btn primary" data-action="next">${live.meta.index===QUESTIONS.length-1?'סיום המשחק והצגת דירוג 🏆':'לשאלה הבאה ←'}</button></div>`;
+  if(phase==='revealed') return `<div class="live-actions live-reveal-actions">${!isBoardVisible()?'<button class="btn secondary" data-action="showBoard">🏆 הצג דירוג עכשיו</button>':''}<button class="btn primary" data-action="next">${live.meta.index===QUESTIONS.length-1?'סיום המשחק והצגת דירוג 🏆':'לשאלה הבאה ←'}</button></div>`;
   return '<div class="live-actions"><button class="btn secondary" data-action="close">סגור ומחק את החדר</button></div>';
 }
 function stageMarkup() {
@@ -235,6 +297,11 @@ function stageMarkup() {
   }
   const q=QUESTIONS[m.index];
   if(!q) return '<div class="live-panel">מספר שאלה לא תקין.</div>';
+  if(m.phase==='revealed') {
+    return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${QUESTIONS.length} — התשובה נחשפה</span></div>
+      <div class="progress"><div style="width:${100*(m.index+1)/QUESTIONS.length}%"></div></div>
+      <div id="liveRevealContent"></div><div id="liveRevealControls">${host?hostControls():''}</div>`;
+  }
   return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${QUESTIONS.length}</span><span class="live-badge" id="liveCountdown">${m.timerEnabled?'⏳ 30 שניות':'ללא הגבלת זמן'}</span></div>
     <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/QUESTIONS.length}%"></div></div>
     <div class="quiz-layout">
@@ -254,10 +321,13 @@ function renderLive() {
   const key=`${live.role}:${live.meta.phase}:${live.meta.index}`;
   if(key!==live.stageKey) {
     live.stageKey=key;
+    live.revealView='';
+    if(live.meta.phase==='revealed') live.fallbackRevealedAt=nowServer();
     $('liveStage').innerHTML=stageMarkup();
   }
   const m=live.meta;
   $('liveHostInvite').hidden=live.role!=='host' || m.phase!=='lobby';
+  if(m.phase==='revealed') { refreshRevealView(true); return; }
   if(m.phase==='lobby') {
     const names=$('liveNames');
     if(names) names.innerHTML=`<div class="live-names">${Object.values(live.players).map(p=>`<span class="live-name" dir="auto">${esc(p.name||'ללא כינוי')}</span>`).join('')}</div>`;
@@ -275,7 +345,7 @@ function renderLive() {
     if(explain) explain.innerHTML=m.phase==='revealed'?`<div class="feedback good"><strong>התשובה: אי־רציפות ${esc(TYPES[QUESTIONS[m.index].type])}</strong>${esc(QUESTIONS[m.index].explanation)}</div>`:'';
   }
   const board=$('liveBoardPlace');
-  if(board) board.innerHTML=boardHTML();
+  if(board) board.innerHTML=m.phase==='finished'?boardHTML():'';
   const all=$('liveAllStats');
   if(all) all.innerHTML=allQuestionStatsHTML();
   updateClock();
@@ -308,11 +378,11 @@ async function startOrNext() {
   if(live.role!=='host' || !live.meta) return;
   const old=live.meta, next=old.phase==='lobby'?0:old.index+1;
   if(next>=QUESTIONS.length) { await hostUpdate({phase:'finished'}); return; }
-  await hostUpdate({ phase:'question', index:next, questionKey:`q${next}`, deadline:old.timerEnabled?nowServer()+30000:0 });
+  await hostUpdate({ phase:'question', index:next, questionKey:`q${next}`, deadline:old.timerEnabled?nowServer()+30000:0, revealedAt:0, showBoard:false });
   live.autoReveal=false;
 }
 async function revealQuestion() {
-  if(live.role==='host' && live.meta?.phase==='question') await hostUpdate({phase:'revealed'});
+  if(live.role==='host' && live.meta?.phase==='question') await hostUpdate({phase:'revealed', revealedAt:serverTimestamp(), showBoard:false});
 }
 async function sendAnswer(choice) {
   const m=live.meta;
@@ -375,6 +445,7 @@ $('liveStage').addEventListener('click',async e=>{
   try {
     if(action==='start'||action==='next') await startOrNext();
     else if(action==='reveal') await revealQuestion();
+    else if(action==='showBoard' && live.meta?.phase==='revealed') await hostUpdate({showBoard:true});
     else if(action==='close') await closeRoom();
   } catch(err) { roomError(errorText(err)); }
   finally { if(button.isConnected) button.disabled=false; }
