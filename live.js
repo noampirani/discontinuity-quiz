@@ -15,7 +15,7 @@ const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const configured = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.databaseURL && firebaseConfig.appId && !Object.values(firebaseConfig).some(v => String(v).includes('PASTE_')));
 let db = null, auth = null, connectPromise = null;
 let inProgress = false;
-const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', revealView: '', clock: null, serverOffset: 0, autoReveal: false };
+const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', revealView: '', speakerQuestion: -1, speakerPicked: '', speakerSeen: new Set(), boardSignature: '', clock: null, serverOffset: 0, autoReveal: false };
 
 const cleanCode = v => String(v || '').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
 const codeURL = code => { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('room', code); return u.href; };
@@ -116,7 +116,7 @@ function detachRoom() {
   for(const unsub of live.unsubs.splice(0)) try { unsub(); } catch {}
   if(live.clock) { clearInterval(live.clock); live.clock = null; }
   $('liveResetRoom').hidden=true;
-  live.code=''; live.role=''; live.meta=null; live.players={}; live.answers={}; live.stageKey=''; live.revealView=''; live.autoReveal=false;
+  live.code=''; live.role=''; live.meta=null; live.players={}; live.answers={}; live.stageKey=''; live.revealView=''; live.speakerQuestion=-1; live.speakerPicked=''; live.speakerSeen.clear(); live.boardSignature=''; live.autoReveal=false;
 }
 function attachRoom(code,role) {
   detachRoom();
@@ -176,9 +176,9 @@ function updateClock() {
     revealQuestion().catch(e=>{live.autoReveal=false;roomError(errorText(e));});
   }
 }
-function getPlayerScores() {
+function getPlayerScores(through=null) {
   const m=live.meta;
-  const last=m?.phase==='lobby' ? -1 : m?.phase==='question'?m.index-1:m?.index ?? -1;
+  const last=through===null ? (m?.phase==='lobby' ? -1 : m?.phase==='question'?m.index-1:m?.index ?? -1) : through;
   return Object.entries(live.players).map(([uid, profile]) => {
     let score=0, correct=0;
     for(let i=0;i<=last && i<QUESTIONS.length;i++) {
@@ -186,6 +186,24 @@ function getPlayerScores() {
     }
     return {uid, name:profile.name || 'ללא כינוי', score, correct};
   }).sort((a,b)=>b.score-a.score || a.name.localeCompare(b.name, 'he') || a.uid.localeCompare(b.uid));
+}
+// חישוב השינוי במיקום: ההשוואה היא ללוח אחרי השאלה הקודמת.
+// במצב של ניקוד זהה סדר השחקנים נקבע לפי הכינוי (כמו בדירוג הרגיל).
+function biggestClimbers() {
+  const index=live.meta?.index;
+  if(!Number.isInteger(index) || index<1) return [];
+  const before=getPlayerScores(index-1);
+  const after=getPlayerScores(index);
+  const prevPlaces=new Map(before.map((p,i)=>[p.uid,i+1]));
+  const climbs=after.map((p,i)=>({...p, gain:(prevPlaces.get(p.uid) ?? i+1)-(i+1)}));
+  const best=Math.max(0,...climbs.map(p=>p.gain));
+  return best>0 ? climbs.filter(p=>p.gain===best) : [];
+}
+function podiumConfetti() {
+  return `<div class="live-confetti" aria-hidden="true">${Array.from({length:16},(_,i)=>`<i style="--pos:${4+i*6.1}%;--delay:${(i%6)*.11}s;--tilt:${i%2?-1:1};--hue:${(i*47)%360}"></i>`).join('')}</div>`;
+}
+function boardSignature() {
+  return `${live.meta?.index}:${Object.entries(live.players).map(([uid,p])=>uid+':'+p.name).sort().join('|')}:${JSON.stringify(live.answers)}`;
 }
 function boardHTML(max=40) {
   const rank=getPlayerScores();
@@ -196,7 +214,9 @@ function boardHTML(max=40) {
   const podium=revealedAny && rank.length ? `<div class="live-podium" aria-label="שלושת המקומות הראשונים">${[
     [1,'🥈','מקום שני'], [0,'🥇','מקום ראשון'], [2,'🥉','מקום שלישי']
   ].map(([i,medal,label])=>rank[i]?`<div class="live-podium-spot place${i+1}"><span class="medal">${medal}</span><b>${label}</b><span class="winner-name" dir="auto">${esc(rank[i].name)}</span><span class="winner-score">${rank[i].score} נקודות</span></div>`:`<div class="live-podium-spot place${i+1}"><span class="medal">${medal}</span><span>${label}</span><span class="note">טרם נקבע</span></div>`).join('')}</div>`:'';
-  return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${podium}${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">100 נקודות לתשובה נכונה. הדירוג מתעדכן אחרי חשיפת התשובה; במקרה של תיקו הניקוד זהה.</p></div>`;
+  const risers=biggestClimbers();
+  const riserLabel=risers.length ? `<div class="live-climber" role="status"><span class="live-climber-icon">🚀</span><div><b>${risers.length>1?'הקפיצה הגדולה בדירוג':'מטפס/ת השאלה'}</b><p>${risers.map(p=>`<strong dir="auto">${esc(p.name)}</strong>`).join(' · ')} — עלייה של ${risers[0].gain} ${risers[0].gain===1?'מקום':'מקומות'}!</p></div></div>` : '';
+  return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${podium}${riserLabel}${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">100 נקודות לתשובה נכונה. בשוויון ניקוד סדר ההצגה נקבע לפי כינוי.</p></div>`;
 }
 function countsFor(index) {
   const votes=Object.entries(live.answers[`q${index}`] || {}).filter(([uid,answer])=>Boolean(live.players[uid]) && Number.isInteger(answer?.choice) && answer.choice>=0 && answer.choice<TYPES.length);
@@ -231,6 +251,40 @@ function isBoardVisible() {
   // אין מעבר מבוסס זמן: אותו מצב נשמר ב-Firebase לכל המשתתפים.
   return live.meta?.phase==='revealed' && live.meta.showBoard===true;
 }
+// הגרלת מסביר מתבצעת במכשיר של המתרגל בלבד; לא נשמר שם ב-Firebase.
+function eligibleSpeakers() {
+  const i=live.meta?.index;
+  if(!Number.isInteger(i) || !QUESTIONS[i]) return [];
+  return Object.entries(live.players)
+    .filter(([uid])=>live.answers[`q${i}`]?.[uid]?.choice===QUESTIONS[i].type)
+    .map(([uid,p])=>({uid,name:p.name || 'ללא כינוי'}));
+}
+function speakerHTML() {
+  if(live.role!=='host' || live.meta?.phase!=='revealed' || isBoardVisible()) return '';
+  const candidates=eligibleSpeakers();
+  const chosen=candidates.find(p=>p.uid===live.speakerPicked);
+  return `<div class="live-speaker" id="liveSpeakerPanel">
+    <div><h3>🎤 מי יסביר לכיתה?</h3><p class="live-meta">הגרלה בין ${candidates.length} ${candidates.length===1?"סטודנט/ית שענה/תה נכון":"סטודנטים שענו נכון"}. השם מוצג רק במסך המתרגל, ולא בטלפונים של הסטודנטים.</p></div>
+    <div class="live-speaker-actions"><button class="btn secondary" data-action="pickSpeaker" ${!candidates.length?'disabled':''}>🎲 ${chosen?'הגרל/י מסביר אחר':'בחר/י מסביר באקראי'}</button>${chosen?'<button class="btn secondary small" data-action="hideSpeaker">הסתר שם</button>':''}</div>
+    ${chosen?`<div class="live-speaker-name" role="status">🎙️ <strong dir="auto">${esc(chosen.name)}</strong></div>`:''}
+    ${!candidates.length?'<p class="note">אין כרגע סטודנטים שענו נכון בשאלה זו.</p>':''}
+  </div>`;
+}
+function updateSpeakerPanel() {
+  const panel=$('liveSpeakerPanel');
+  if(panel && live.role==='host') panel.outerHTML=speakerHTML();
+}
+function chooseSpeaker() {
+  if(live.role!=='host' || live.meta?.phase!=='revealed' || isBoardVisible()) return;
+  const pool=eligibleSpeakers();
+  if(!pool.length) return;
+  let unused=pool.filter(p=>!live.speakerSeen.has(p.uid));
+  if(!unused.length) { live.speakerSeen.clear(); unused=pool; }
+  const chosen=unused[crypto.getRandomValues(new Uint32Array(1))[0] % unused.length];
+  live.speakerPicked=chosen.uid;
+  live.speakerSeen.add(chosen.uid);
+  updateSpeakerPanel();
+}
 function resultsSummaryHTML() {
   const m=live.meta, q=QUESTIONS[m.index];
   const mine=live.answers[`q${m.index}`]?.[live.uid]?.choice;
@@ -246,13 +300,14 @@ function resultsSummaryHTML() {
       <div id="liveResultsStats">${statsHTML()}</div>
     </div>
     ${selfMessage?`<p class="live-status good">${selfMessage}</p>`:''}
+    ${speakerHTML()}
     <p class="live-coming-next">🏆 ממתינים למתרגל להצגת טבלת המובילים…</p>
   </div>`;
 }
 function resultsLeaderboardHTML() {
   const m=live.meta, counts=countsFor(m.index);
   return `<div class="live-results-page live-results-leaderboard" role="region" aria-label="טבלת מובילים">
-    <div class="live-results-hero"><div class="kicker">אחרי שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. 100 נקודות לכל תשובה נכונה.</p></div>
+    <div class="live-results-hero live-celebration-hero">${podiumConfetti()}<div class="kicker">אחרי שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. 100 נקודות לכל תשובה נכונה.</p></div>
     <div class="live-results-ribbon"><span>✅ ${counts.correct} צדקו</span><span>❌ ${counts.wrong} טעו</span><span>⌛ ${counts.unanswered} לא ענו</span></div>
     ${boardHTML()}
   </div>`;
@@ -266,6 +321,7 @@ function refreshRevealView(refreshData=false) {
   if(changed) {
     live.revealView=view;
     container.innerHTML=view==='board'?resultsLeaderboardHTML():resultsSummaryHTML();
+    live.boardSignature=view==='board'?boardSignature():'';
     const controls=$('liveRevealControls');
     if(controls && live.role==='host') controls.innerHTML=hostControls();
     // קפיצה לראש מסך הדירוג גם כאשר הכפתור נמצא מתחת לתוצאות הארוכות.
@@ -275,11 +331,14 @@ function refreshRevealView(refreshData=false) {
   if(view==='stats') {
     const stats=$('liveResultsStats');
     if(stats && !changed && refreshData) stats.innerHTML=statsHTML();
+    if(!changed && refreshData) updateSpeakerPanel();
   }
   // מעדכן גם את הדירוג אם Firebase שלח נתוני שחקנים חדשים.
   else {
     const board=container.querySelector('.live-board');
-    if(board && !changed && refreshData) board.outerHTML=boardHTML();
+    if(board && !changed && refreshData && live.boardSignature!==boardSignature()) {
+      board.outerHTML=boardHTML(); live.boardSignature=boardSignature();
+    }
   }
 }
 function hostControls() {
@@ -295,7 +354,7 @@ function stageMarkup() {
     return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
   }
   if(m.phase==='finished') {
-    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">${QUESTIONS.length} שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div id="liveBoardPlace"></div><div id="liveAllStats"></div>`;
+    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">${QUESTIONS.length} שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div class="live-finished-board"><div class="live-results-hero live-celebration-hero">${podiumConfetti()}<h2>🎊 הפודיום הסופי!</h2></div><div id="liveBoardPlace"></div></div><div id="liveAllStats"></div>`;
   }
   const q=QUESTIONS[m.index];
   if(!q) return '<div class="live-panel">מספר שאלה לא תקין.</div>';
@@ -324,6 +383,8 @@ function renderLive() {
   if(key!==live.stageKey) {
     live.stageKey=key;
     live.revealView='';
+    live.boardSignature='';
+    if(live.speakerQuestion!==live.meta.index) { live.speakerQuestion=live.meta.index; live.speakerPicked=''; live.speakerSeen.clear(); }
     $('liveStage').innerHTML=stageMarkup();
   }
   const m=live.meta;
@@ -454,6 +515,8 @@ $('liveStage').addEventListener('click',async e=>{
   const action=button.dataset.action;
   if(action==='answer') { await sendAnswer(Number(button.dataset.choice)); return; }
   if(live.role!=='host') return;
+  if(action==='pickSpeaker') { chooseSpeaker(); return; }
+  if(action==='hideSpeaker') { live.speakerPicked=''; updateSpeakerPanel(); return; }
   button.disabled=true; roomError('');
   try {
     if(action==='start'||action==='next') await startOrNext();

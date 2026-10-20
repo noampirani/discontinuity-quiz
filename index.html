@@ -115,6 +115,33 @@
     @keyframes live-result-enter { from { opacity:0; transform:translateY(18px) scale(.99); } to { opacity:1; transform:none; } }
     @media(max-width:600px) { .live-results-summary .live-tally b { font-size:40px; } .live-results-summary .live-tally span { font-size:13px; } .live-results-summary .live-stat { grid-template-columns:76px minmax(0,1fr) 27px; gap:7px; } }
     @media(prefers-reduced-motion:reduce) { .live-results-page { animation:none; } }
+
+    /* בחירת מסביר – מקומית למסך המתרגל בלבד, ללא פרסום השם למכשירי הכיתה. */
+    .live-speaker { max-width:920px; margin:17px auto; padding:19px; border:1px solid #7871a9; background:linear-gradient(130deg,#29284d,#202a4b); border-radius:20px; text-align:center; }
+    .live-speaker h3 { font-size:clamp(19px,2.8vw,27px); margin:0 0 6px; }
+    .live-speaker .live-meta { margin:0; }
+    .live-speaker-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:13px; }
+    .live-speaker-name { display:inline-flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:10px; margin-top:15px; padding:12px 28px; border:1px solid #c8b1ff; background:#3d3467; border-radius:14px; font-size:clamp(21px,3.4vw,32px); }
+    .live-speaker-name strong { overflow-wrap:anywhere; }
+    /* פודיום אנימטיבי ואירוע שיא קטן בעת חשיפת הדירוג. */
+    :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot { animation:live-podium-in .76s cubic-bezier(.17,.8,.26,1.3) both; transform-origin:bottom center; }
+    :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot:nth-child(1) { animation-delay:.12s; }
+    :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot:nth-child(2) { animation-delay:.46s; }
+    :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot:nth-child(3) { animation-delay:.3s; }
+    :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot.place1 .medal { animation:live-gold-glow 1.3s ease-in-out 1.1s 2 alternate; }
+    .live-celebration-hero { position:relative; isolation:isolate; overflow:hidden; }
+    .live-celebration-hero > :not(.live-confetti) { position:relative; z-index:2; }
+    .live-confetti { position:absolute; inset:0; pointer-events:none; z-index:1; overflow:hidden; }
+    .live-confetti i { position:absolute; left:var(--pos); top:-25px; background:hsl(var(--hue) 89% 73%); width:8px; height:17px; border-radius:2px; opacity:0; animation:live-confetti-fall 2s ease-out var(--delay) both; }
+    .live-climber { display:flex; align-items:center; justify-content:center; gap:11px; padding:14px; border:1px solid #5bceac; border-radius:14px; background:#1b4944; margin:8px auto 16px; text-align:center; }
+    .live-climber-icon { font-size:30px; }
+    .live-climber p { margin:5px 0 0; line-height:1.5; }
+    .live-climber strong { color:#f3fffa; }
+    @keyframes live-podium-in { from { transform:translateY(70px) scale(.75); opacity:0; } to { transform:translateY(0) scale(1); opacity:1; } }
+    @keyframes live-gold-glow { from { filter:drop-shadow(0 0 0px #ffd87e); transform:scale(1); } to { filter:drop-shadow(0 0 13px #ffd87e); transform:scale(1.12); } }
+    @keyframes live-confetti-fall { 0% { transform:translateY(-20px) rotate(0deg); opacity:1; } 80% {opacity:1;} 100% { transform:translateY(245px) rotate(calc(270deg * var(--tilt))); opacity:0; } }
+    @media(prefers-reduced-motion:reduce) { .live-results-leaderboard .live-podium-spot, :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot.place1 .medal, .live-confetti i { animation:none !important; } }
+
     .choice.selected { border-color:#e0c8ff; background:#49416d; box-shadow:inset 0 0 0 1px #b79dff; }
     .choice.selected::after { content:'✓ נבחרה'; margin-inline-start:auto; font-size:12px; color:#e4d9ff; }
     .choice.selected.correct::after,.choice.selected.incorrect::after { display:none; }
