@@ -22,10 +22,23 @@ const questionSet = () => quizType()==='limits' ? LIMIT_QUESTIONS : QUESTIONS;
 const choiceLabels = q => quizType()==='limits' ? q.options : TYPES.map(t=>`אי־רציפות ${t}`);
 const correctLabel = q => choiceLabels(q)[q.type];
 const subjectLabel = () => quizType()==='limits' ? 'גבולות' : 'אי־רציפות';
+function katexMarkup(tex, displayMode=false) {
+  if(typeof window.katex?.renderToString === 'function') {
+    return window.katex.renderToString(tex,{displayMode,throwOnError:false,trust:false});
+  }
+  // CDN unavailable: show the source instead of an empty question.
+  return `<span class="limit-tex-fallback" dir="ltr">${esc(tex)}</span>`;
+}
+function limitChoiceMarkup(label) {
+  if(quizType()!=='limits') return esc(label);
+  const plain=String(label).replace(/−/g,'-');
+  const fraction=plain.match(/^(-?\d+)\/(\d+)$/);
+  const tex=fraction ? `\\frac{${fraction[1]}}{${fraction[2]}}` : plain;
+  return katexMarkup(tex);
+}
 function limitCard(q) {
   return `<div class="limit-display"><div class="limit-intro">חשבו את הגבול</div>
-    <div class="limit-expression"><span class="limit-operator">lim<sub>x → ${esc(q.to)}</sub></span>
-    ${q.den?`<span class="limit-fraction"><span>${esc(q.num)}</span><span>${esc(q.den)}</span></span>`:`<span>${esc(q.expr)}</span>`}</div>
+    <div class="limit-math" role="math" aria-label="${esc(q.tex)}">${katexMarkup(q.tex,true)}</div>
     <div class="limit-hint">גבול סופי רגיל · בחרו את התוצאה</div></div>`;
 }
 function illustration(q) {
@@ -254,13 +267,13 @@ function statsHTML() {
       <div class="live-tally missing"><span>⌛ לא ענו</span><b>${unanswered}</b></div>
     </div>
     <p class="live-meta">${voted?Math.round(correct*100/voted):0}% מהמשיבים ענו נכון.</p>
-    <div class="live-stats">${counts.map((n,i)=>`<div class="live-stat ${i===solution?'winner':''}"><span>${esc(choiceLabels(questionSet()[live.meta.index])[i])}${i===solution?' ✓':''}</span><div class="live-track"><div class="live-fill" style="width:${voted?Math.round(n*100/voted):0}%"></div></div><b>${n}</b></div>`).join('')}</div>
+    <div class="live-stats">${counts.map((n,i)=>`<div class="live-stat ${i===solution?'winner':''}"><span>${limitChoiceMarkup(choiceLabels(questionSet()[live.meta.index])[i])}${i===solution?' ✓':''}</span><div class="live-track"><div class="live-fill" style="width:${voted?Math.round(n*100/voted):0}%"></div></div><b>${n}</b></div>`).join('')}</div>
   </div>`;
 }
 function allQuestionStatsHTML() {
   return `<div class="live-board"><h3>📊 סיכום הכיתה — שאלה אחר שאלה</h3>${questionSet().map((q,i)=>{
     const x=countsFor(i);
-    return `<div class="live-correct-row"><b>שאלה ${i+1}: ${esc(correctLabel(q))}</b><span>✅ ${x.correct} צדקו · ❌ ${x.wrong} טעו · ⏳ ${x.unanswered} לא ענו</span></div>`;
+    return `<div class="live-correct-row"><b>שאלה ${i+1}: ${limitChoiceMarkup(correctLabel(q))}</b><span>✅ ${x.correct} צדקו · ❌ ${x.wrong} טעו · ⏳ ${x.unanswered} לא ענו</span></div>`;
   }).join('')}</div>`;
 }
 // התצוגה מסונכרנת בין כל המשתתפים לפי חותמת הזמן של Firebase,
@@ -309,7 +322,7 @@ function resultsSummaryHTML() {
   const selfMessage=live.role==='student' ? (!Number.isInteger(mine) ? '⌛ לא התקבלה תשובה שלך בשאלה הזו.' : mine===q.type ? '✅ כל הכבוד! תשובה נכונה — 100 נקודות.' : '❌ הפעם התשובה שלך לא הייתה נכונה.') : '';
   return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
     <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>📊 איך ענתה הכיתה?</h2>
-      <p class="live-answer-label">התשובה הנכונה: <strong>${esc(correctLabel(q))}</strong></p></div>
+      <p class="live-answer-label">התשובה הנכונה: <strong>${limitChoiceMarkup(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
       <div class="graph-card live-results-graph">
         <div class="graph-title">${quizType()==='limits'?'תרגיל חישוב גבול':`גרף הפונקציה — סביב x = ${q.at}`}</div>
@@ -387,7 +400,7 @@ function stageMarkup() {
       ${illustration(q)}
       <div class="answer-card"><h2 class="question">${quizType()==='limits'?'מהו ערך הגבול?':`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
         ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
-        ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${esc(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
+        ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${limitChoiceMarkup(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
         ${!host?'<div id="liveStudentStats"></div>':''}
         ${host?hostControls():''}
@@ -442,7 +455,7 @@ function refreshStudentChoices() {
   if(message) {
     const correct=questionSet()[m.index].type;
     message.innerHTML=m.phase==='revealed'?(hasAnswer?`<div class="live-status ${answer===correct?'good':'warn'}">${answer===correct?'✅ צדקת! קיבלת 100 נקודות.':'התשובה לא הייתה נכונה הפעם.'}</div>`:'<div class="live-status">לא התקבלה תשובה לשאלה זו.</div>'):
-      hasAnswer?`<div class="live-status good">✅ הבחירה הנוכחית שלך: <b>${esc(choiceLabels(questionSet()[m.index])[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}.</div>`:
+      hasAnswer?`<div class="live-status good">✅ הבחירה הנוכחית שלך: <b>${limitChoiceMarkup(choiceLabels(questionSet()[m.index])[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}.</div>`:
       expired?'<div class="live-status warn">⏰ הזמן נגמר. ממתינים לחשיפת התשובה.</div>':'';
   }
 }
