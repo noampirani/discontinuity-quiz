@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/1
 import { getDatabase, ref, get, set, update, remove, runTransaction, onValue, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js';
 
-const { QUESTIONS, TYPES, makePlot, esc } = window.quizShared;
+const { QUESTIONS, LIMIT_QUESTIONS, TYPES, makePlot, esc } = window.quizShared;
 const $ = id => document.getElementById(id);
 const SESSION_KEY = 'continuity-quiz-live-session-v2';
 // מסך התוצאות נשאר פתוח עד שהמתרגל בוחר להציג את הדירוג.
@@ -17,6 +17,23 @@ let db = null, auth = null, connectPromise = null;
 let inProgress = false;
 const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', revealView: '', speakerQuestion: -1, speakerPicked: '', speakerSeen: new Set(), boardSignature: '', clock: null, serverOffset: 0, autoReveal: false };
 
+const quizType = () => live.meta?.quizType === 'limits' ? 'limits' : 'discontinuity';
+const questionSet = () => quizType()==='limits' ? LIMIT_QUESTIONS : QUESTIONS;
+const choiceLabels = q => quizType()==='limits' ? q.options : TYPES.map(t=>`אי־רציפות ${t}`);
+const correctLabel = q => choiceLabels(q)[q.type];
+const subjectLabel = () => quizType()==='limits' ? 'גבולות' : 'אי־רציפות';
+function limitCard(q) {
+  return `<div class="limit-display"><div class="limit-intro">חשבו את הגבול</div>
+    <div class="limit-expression"><span class="limit-operator">lim<sub>x → ${esc(q.to)}</sub></span>
+    ${q.den?`<span class="limit-fraction"><span>${esc(q.num)}</span><span>${esc(q.den)}</span></span>`:`<span>${esc(q.expr)}</span>`}</div>
+    <div class="limit-hint">גבול סופי רגיל · בחרו את התוצאה</div></div>`;
+}
+function illustration(q) {
+  return quizType()==='limits'
+    ? `<div class="graph-card"><div class="graph-title">תרגיל חישוב גבול</div>${limitCard(q)}</div>`
+    : `<div class="graph-card"><div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div><div class="plot-wrap">${makePlot(q)}</div>
+      <div class="legend"><span><i class="symbol"></i> עיגול ריק</span><span><i class="symbol filled"></i> ערך הפונקציה</span><span><i class="symbol line"></i> הנקודה לבדיקה</span></div></div>`;
+}
 const cleanCode = v => String(v || '').toUpperCase().replace(/[^A-Z2-9]/g, '').slice(0, 6);
 const codeURL = code => { const u = new URL(location.href); u.search = ''; u.hash = ''; u.searchParams.set('room', code); return u.href; };
 const metaRef = () => ref(db, `rooms/${live.code}/meta`);
@@ -79,7 +96,7 @@ async function createRoom() {
       const roomNode = ref(db, `rooms/${code}`);
       const created = await runTransaction(roomNode, current => {
         if(current !== null) return;
-        return { meta: { hostUid:live.uid, phase:'lobby', index:-1, questionKey:'', timerEnabled:$('liveUseTimer').checked, deadline:0, createdAt:Date.now() } };
+        return { meta: { hostUid:live.uid, phase:'lobby', index:-1, questionKey:'', quizType:$('liveQuizType').value==='limits'?'limits':'discontinuity', timerEnabled:$('liveUseTimer').checked, timerSeconds:$('liveQuizType').value==='limits'?60:30, deadline:0, createdAt:Date.now() } };
       }, {applyLocally:false});
       if(created.committed) {
         safeStore({code, role:'host', uid:live.uid});
@@ -181,8 +198,8 @@ function getPlayerScores(through=null) {
   const last=through===null ? (m?.phase==='lobby' ? -1 : m?.phase==='question'?m.index-1:m?.index ?? -1) : through;
   return Object.entries(live.players).map(([uid, profile]) => {
     let score=0, correct=0;
-    for(let i=0;i<=last && i<QUESTIONS.length;i++) {
-      if(live.answers[`q${i}`]?.[uid]?.choice === QUESTIONS[i].type) { score+=100;correct++; }
+    for(let i=0;i<=last && i<questionSet().length;i++) {
+      if(live.answers[`q${i}`]?.[uid]?.choice === questionSet()[i].type) { score+=100;correct++; }
     }
     return {uid, name:profile.name || 'ללא כינוי', score, correct};
   }).sort((a,b)=>b.score-a.score || a.name.localeCompare(b.name, 'he') || a.uid.localeCompare(b.uid));
@@ -219,16 +236,17 @@ function boardHTML(max=40) {
   return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${podium}${riserLabel}${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">100 נקודות לתשובה נכונה. בשוויון ניקוד סדר ההצגה נקבע לפי כינוי.</p></div>`;
 }
 function countsFor(index) {
-  const votes=Object.entries(live.answers[`q${index}`] || {}).filter(([uid,answer])=>Boolean(live.players[uid]) && Number.isInteger(answer?.choice) && answer.choice>=0 && answer.choice<TYPES.length);
-  const counts=TYPES.map((_,j)=>votes.filter(([,x])=>x.choice===j).length);
-  const correct=counts[QUESTIONS[index].type], voted=votes.length;
+  const labels=choiceLabels(questionSet()[index]);
+  const votes=Object.entries(live.answers[`q${index}`] || {}).filter(([uid,answer])=>Boolean(live.players[uid]) && Number.isInteger(answer?.choice) && answer.choice>=0 && answer.choice<labels.length);
+  const counts=labels.map((_,j)=>votes.filter(([,x])=>x.choice===j).length);
+  const correct=counts[questionSet()[index].type], voted=votes.length;
   const total=Object.keys(live.players).length;
   return {counts, correct, wrong:voted-correct, unanswered:Math.max(0,total-voted), voted, total};
 }
 // תוצאות ההצבעה קיימות רק במסך שלאחר החשיפה, לעולם לא בזמן הבחירה.
 function statsHTML() {
   const {counts,correct,wrong,unanswered,voted,total}=countsFor(live.meta.index);
-  const solution=QUESTIONS[live.meta.index].type;
+  const solution=questionSet()[live.meta.index].type;
   return `<div class="live-board"><strong>📊 תוצאות השאלה: ${voted} מתוך ${total} ענו</strong>
     <div class="live-summary">
       <div class="live-tally right"><span>✅ צדקו</span><b>${correct}</b></div>
@@ -236,13 +254,13 @@ function statsHTML() {
       <div class="live-tally missing"><span>⌛ לא ענו</span><b>${unanswered}</b></div>
     </div>
     <p class="live-meta">${voted?Math.round(correct*100/voted):0}% מהמשיבים ענו נכון.</p>
-    <div class="live-stats">${counts.map((n,i)=>`<div class="live-stat ${i===solution?'winner':''}"><span>${esc(TYPES[i])}${i===solution?' ✓':''}</span><div class="live-track"><div class="live-fill" style="width:${voted?Math.round(n*100/voted):0}%"></div></div><b>${n}</b></div>`).join('')}</div>
+    <div class="live-stats">${counts.map((n,i)=>`<div class="live-stat ${i===solution?'winner':''}"><span>${esc(choiceLabels(questionSet()[live.meta.index])[i])}${i===solution?' ✓':''}</span><div class="live-track"><div class="live-fill" style="width:${voted?Math.round(n*100/voted):0}%"></div></div><b>${n}</b></div>`).join('')}</div>
   </div>`;
 }
 function allQuestionStatsHTML() {
-  return `<div class="live-board"><h3>📊 סיכום הכיתה — שאלה אחר שאלה</h3>${QUESTIONS.map((q,i)=>{
+  return `<div class="live-board"><h3>📊 סיכום הכיתה — שאלה אחר שאלה</h3>${questionSet().map((q,i)=>{
     const x=countsFor(i);
-    return `<div class="live-correct-row"><b>שאלה ${i+1}: ${esc(TYPES[q.type])}</b><span>✅ ${x.correct} צדקו · ❌ ${x.wrong} טעו · ⏳ ${x.unanswered} לא ענו</span></div>`;
+    return `<div class="live-correct-row"><b>שאלה ${i+1}: ${esc(correctLabel(q))}</b><span>✅ ${x.correct} צדקו · ❌ ${x.wrong} טעו · ⏳ ${x.unanswered} לא ענו</span></div>`;
   }).join('')}</div>`;
 }
 // התצוגה מסונכרנת בין כל המשתתפים לפי חותמת הזמן של Firebase,
@@ -254,9 +272,9 @@ function isBoardVisible() {
 // הגרלת מסביר מתבצעת במכשיר של המתרגל בלבד; לא נשמר שם ב-Firebase.
 function eligibleSpeakers() {
   const i=live.meta?.index;
-  if(!Number.isInteger(i) || !QUESTIONS[i]) return [];
+  if(!Number.isInteger(i) || !questionSet()[i]) return [];
   return Object.entries(live.players)
-    .filter(([uid])=>live.answers[`q${i}`]?.[uid]?.choice===QUESTIONS[i].type)
+    .filter(([uid])=>live.answers[`q${i}`]?.[uid]?.choice===questionSet()[i].type)
     .map(([uid,p])=>({uid,name:p.name || 'ללא כינוי'}));
 }
 function speakerHTML() {
@@ -286,16 +304,16 @@ function chooseSpeaker() {
   updateSpeakerPanel();
 }
 function resultsSummaryHTML() {
-  const m=live.meta, q=QUESTIONS[m.index];
+  const m=live.meta, q=questionSet()[m.index];
   const mine=live.answers[`q${m.index}`]?.[live.uid]?.choice;
   const selfMessage=live.role==='student' ? (!Number.isInteger(mine) ? '⌛ לא התקבלה תשובה שלך בשאלה הזו.' : mine===q.type ? '✅ כל הכבוד! תשובה נכונה — 100 נקודות.' : '❌ הפעם התשובה שלך לא הייתה נכונה.') : '';
   return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
-    <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>📊 איך ענתה הכיתה?</h2>
-      <p class="live-answer-label">התשובה הנכונה: <strong>אי־רציפות ${esc(TYPES[q.type])}</strong></p></div>
+    <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>📊 איך ענתה הכיתה?</h2>
+      <p class="live-answer-label">התשובה הנכונה: <strong>${esc(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
       <div class="graph-card live-results-graph">
-        <div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div>
-        <div class="plot-wrap">${makePlot(q)}</div>
+        <div class="graph-title">${quizType()==='limits'?'תרגיל חישוב גבול':`גרף הפונקציה — סביב x = ${q.at}`}</div>
+        ${quizType()==='limits'?limitCard(q):`<div class="plot-wrap">${makePlot(q)}</div>`}
       </div>
       <div id="liveResultsStats">${statsHTML()}</div>
     </div>
@@ -307,7 +325,7 @@ function resultsSummaryHTML() {
 function resultsLeaderboardHTML() {
   const m=live.meta, counts=countsFor(m.index);
   return `<div class="live-results-page live-results-leaderboard" role="region" aria-label="טבלת מובילים">
-    <div class="live-results-hero live-celebration-hero">${podiumConfetti()}<div class="kicker">אחרי שאלה ${m.index+1} מתוך ${QUESTIONS.length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. 100 נקודות לכל תשובה נכונה.</p></div>
+    <div class="live-results-hero live-celebration-hero">${podiumConfetti()}<div class="kicker">אחרי שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. 100 נקודות לכל תשובה נכונה.</p></div>
     <div class="live-results-ribbon"><span>✅ ${counts.correct} צדקו</span><span>❌ ${counts.wrong} טעו</span><span>⌛ ${counts.unanswered} לא ענו</span></div>
     ${boardHTML()}
   </div>`;
@@ -343,34 +361,33 @@ function refreshRevealView(refreshData=false) {
 }
 function hostControls() {
   const phase=live.meta.phase;
-  if(phase==='lobby') return `<div class="live-actions"><button class="btn primary" data-action="start">התחל משחק — שאלה 1 ←</button></div>`;
+  if(phase==='lobby') return `<div class="live-actions"><button class="btn primary" data-action="start">התחל משחק ${subjectLabel()} — שאלה 1 ←</button></div>`;
   if(phase==='question') return '<div class="live-actions"><button class="btn primary" data-action="reveal">חשוף תשובה וניקוד</button></div>';
-  if(phase==='revealed') return `<div class="live-actions live-reveal-actions">${!isBoardVisible()?'<button class="btn primary" data-action="showBoard">🏆 המשך ל-Leaderboard ←</button>':`<button class="btn primary" data-action="next">${live.meta.index===QUESTIONS.length-1?'סיום המשחק 🏆':'לשאלה הבאה ←'}</button>`}</div>`;
+  if(phase==='revealed') return `<div class="live-actions live-reveal-actions">${!isBoardVisible()?'<button class="btn primary" data-action="showBoard">🏆 המשך ל-Leaderboard ←</button>':`<button class="btn primary" data-action="next">${live.meta.index===questionSet().length-1?'סיום המשחק 🏆':'לשאלה הבאה ←'}</button>`}</div>`;
   return '<p class="live-meta">המשחק הסתיים. כדי לנקות את הטסטים ולהתחיל מחדש, לחצו על ״סגור חדר ואפס משחק״ למעלה.</p>';
 }
 function stageMarkup() {
   const m=live.meta, host=live.role==='host', count=Object.keys(live.players).length;
   if(m.phase==='lobby') {
-    return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
+    return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">נושא החדר: <strong>${subjectLabel()}</strong> · 10 שאלות</p><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
   }
   if(m.phase==='finished') {
-    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">${QUESTIONS.length} שאלות על אי־רציפות. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div class="live-finished-board"><div class="live-results-hero live-celebration-hero">${podiumConfetti()}<h2>🎊 הפודיום הסופי!</h2></div><div id="liveBoardPlace"></div></div><div id="liveAllStats"></div>`;
+    return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">${questionSet().length} שאלות בנושא ${subjectLabel()}. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div class="live-finished-board"><div class="live-results-hero live-celebration-hero">${podiumConfetti()}<h2>🎊 הפודיום הסופי!</h2></div><div id="liveBoardPlace"></div></div><div id="liveAllStats"></div>`;
   }
-  const q=QUESTIONS[m.index];
+  const q=questionSet()[m.index];
   if(!q) return '<div class="live-panel">מספר שאלה לא תקין.</div>';
   if(m.phase==='revealed') {
-    return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${QUESTIONS.length} — התשובה נחשפה</span></div>
-      <div class="progress"><div style="width:${100*(m.index+1)/QUESTIONS.length}%"></div></div>
+    return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${questionSet().length} — התשובה נחשפה</span></div>
+      <div class="progress"><div style="width:${100*(m.index+1)/questionSet().length}%"></div></div>
       <div id="liveRevealContent"></div><div id="liveRevealControls">${host?hostControls():''}</div>`;
   }
-  return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${QUESTIONS.length}</span><span class="live-badge" id="liveCountdown">${m.timerEnabled?'⏳ 30 שניות':'ללא הגבלת זמן'}</span></div>
-    <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/QUESTIONS.length}%"></div></div>
+  return `<div class="live-head"><span class="live-badge">שאלה ${m.index+1} מתוך ${questionSet().length}</span><span class="live-badge" id="liveCountdown">${m.timerEnabled?`⏳ ${m.timerSeconds||30} שניות`:'ללא הגבלת זמן'}</span></div>
+    <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/questionSet().length}%"></div></div>
     <div class="quiz-layout">
-      <div class="graph-card"><div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div><div class="plot-wrap">${makePlot(q)}</div>
-      <div class="legend"><span><i class="symbol"></i> עיגול ריק</span><span><i class="symbol filled"></i> ערך הפונקציה</span><span><i class="symbol line"></i> הנקודה לבדיקה</span></div></div>
-      <div class="answer-card"><h2 class="question">מהו סוג אי־הרציפות ב־x = ${q.at}?</h2>
+      ${illustration(q)}
+      <div class="answer-card"><h2 class="question">${quizType()==='limits'?'מהו ערך הגבול?':`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
         ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
-        ${host?'':`<div id="liveStudentChoices">${TYPES.map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>אי־רציפות ${esc(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
+        ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${esc(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
         ${!host?'<div id="liveStudentStats"></div>':''}
         ${host?hostControls():''}
@@ -379,7 +396,7 @@ function stageMarkup() {
 }
 function renderLive() {
   if(!live.meta || !live.code) return;
-  const key=`${live.role}:${live.meta.phase}:${live.meta.index}`;
+  const key=`${live.role}:${quizType()}:${live.meta.phase}:${live.meta.index}`;
   if(key!==live.stageKey) {
     live.stageKey=key;
     live.revealView='';
@@ -388,6 +405,7 @@ function renderLive() {
     $('liveStage').innerHTML=stageMarkup();
   }
   const m=live.meta;
+  $('liveRoleLabel').textContent=(live.role==='host'?'🎓 מסך המתרגל':'📱 משחק כיתתי')+' · '+subjectLabel();
   $('liveHostInvite').hidden=live.role!=='host' || m.phase!=='lobby';
   if(m.phase==='revealed') { refreshRevealView(true); return; }
   if(m.phase==='lobby') {
@@ -416,15 +434,15 @@ function refreshStudentChoices() {
   $('liveStudentChoices')?.querySelectorAll('[data-choice]').forEach(button => {
     const i=Number(button.dataset.choice);
     button.disabled = expired || m.phase!=='question' || inProgress;
-    button.classList.toggle('correct',m.phase==='revealed'&&i===QUESTIONS[m.index].type);
-    button.classList.toggle('incorrect',m.phase==='revealed'&&hasAnswer&&i===answer&&answer!==QUESTIONS[m.index].type);
+    button.classList.toggle('correct',m.phase==='revealed'&&i===questionSet()[m.index].type);
+    button.classList.toggle('incorrect',m.phase==='revealed'&&hasAnswer&&i===answer&&answer!==questionSet()[m.index].type);
     button.classList.toggle('selected',hasAnswer && i===answer && m.phase==='question');
   });
   const message=$('liveAnswerReceipt');
   if(message) {
-    const correct=QUESTIONS[m.index].type;
+    const correct=questionSet()[m.index].type;
     message.innerHTML=m.phase==='revealed'?(hasAnswer?`<div class="live-status ${answer===correct?'good':'warn'}">${answer===correct?'✅ צדקת! קיבלת 100 נקודות.':'התשובה לא הייתה נכונה הפעם.'}</div>`:'<div class="live-status">לא התקבלה תשובה לשאלה זו.</div>'):
-      hasAnswer?`<div class="live-status good">✅ הבחירה הנוכחית שלך: <b>${esc(TYPES[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}.</div>`:
+      hasAnswer?`<div class="live-status good">✅ הבחירה הנוכחית שלך: <b>${esc(choiceLabels(questionSet()[m.index])[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}.</div>`:
       expired?'<div class="live-status warn">⏰ הזמן נגמר. ממתינים לחשיפת התשובה.</div>':'';
   }
 }
@@ -438,8 +456,8 @@ async function startOrNext() {
   if(old.phase==='revealed' && !old.showBoard) return; // קודם מציגים פתרון, ואז דירוג.
   if(old.phase!=='lobby' && old.phase!=='revealed') return;
   const next=old.phase==='lobby'?0:old.index+1;
-  if(next>=QUESTIONS.length) { await hostUpdate({phase:'finished'}); return; }
-  await hostUpdate({ phase:'question', index:next, questionKey:`q${next}`, deadline:old.timerEnabled?nowServer()+30000:0, revealedAt:0, showBoard:false });
+  if(next>=questionSet().length) { await hostUpdate({phase:'finished'}); return; }
+  await hostUpdate({ phase:'question', index:next, questionKey:`q${next}`, deadline:old.timerEnabled?nowServer()+1000*(old.timerSeconds||30):0, revealedAt:0, showBoard:false });
   live.autoReveal=false;
 }
 async function revealQuestion() {
@@ -493,6 +511,11 @@ $('liveHostPanel').hidden=!teacherMode;
 $('liveStudentPanel').hidden=teacherMode;
 $('liveSetupIntro').textContent=teacherMode ? 'יצירת חדר להקרנה בכיתה. הסטודנטים מצטרפים בסריקת קוד QR או דרך קישור ההזמנה.' : 'הקלידו כינוי וקוד חדר כדי להצטרף למשחק. אין צורך בחשבון.';
 $('startLive').textContent=teacherMode ? '🎓 פתיחת חדר למתרגל' : '🏆 הצטרפות למשחק כיתתי';
+$('liveQuizType').addEventListener('change',()=>{
+  const limits=$('liveQuizType').value==='limits';
+  $('liveTimerLabel').textContent=limits?'שעון של 60 שניות לשאלה':'שעון של 30 שניות לשאלה';
+  $('liveUseTimer').checked=!limits;
+});
 $('createRoom').addEventListener('click',createRoom);
 $('joinRoom').addEventListener('click',joinRoom);
 $('liveNickname').addEventListener('keydown',e=>{if(e.key==='Enter') joinRoom();});
