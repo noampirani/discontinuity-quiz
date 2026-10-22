@@ -33,7 +33,7 @@ function limitChoiceMarkup(label) {
   if(quizType()!=='limits') return esc(label);
   const plain=String(label).replace(/−/g,'-');
   // Hebrew answer choices must be shown as ordinary text, not interpreted as TeX.
-  if(/[\u0590-\u05FF]/.test(plain)) return esc(label);
+  if(/[\u0590-\u05FF]/.test(plain)) return `<span class="limit-choice-text" dir="rtl">${esc(label)}</span>`;
   const fraction=plain.match(/^(-?\d+)\/(\d+)$/);
   const tex=fraction ? `\\frac{${fraction[1]}}{${fraction[2]}}` : plain;
   return katexMarkup(tex);
@@ -57,7 +57,10 @@ function limitCard(q) {
       <circle cx="143" cy="55" r="6.5" fill="#e08b35" stroke="#b36a1a" stroke-width="1.4"/>
     </svg></div>`
     : `<div class="limit-math" role="math" aria-label="${esc(q.tex)}">${katexMarkup(q.tex,true)}</div>`;
-  return `<div class="limit-display ${q.kind==='graph'?'limit-display-graph':''}"><div class="limit-intro">${esc(q.question || 'חשבו את הגבול')}</div>${visual}<div class="limit-hint">בחרו תשובה אחת</div></div>`;
+  const formula=q.kind==='graph' ? `<div class="limit-math" role="math">${katexMarkup(q.tex,true)}</div>` : '';
+  const target=q.targetTex ? `<div class="limit-math limit-target-math" role="math">${katexMarkup(q.targetTex,true)}</div>` : '';
+  const legend=q.kind==='graph' ? '<div class="limit-legend"><span><span class="hollow">◯</span> חור בגרף</span><span><span class="filled">●</span> ערך הפונקציה</span></div>' : '';
+  return `<div class="limit-display ${q.kind==='graph'?'limit-display-graph':''} ${q.kind==='piecewise'?'limit-display-complex':''}"><div class="limit-intro" dir="rtl">${esc(q.question || 'חשבו את הגבול')}</div>${formula}${visual}${legend}${target}<div class="limit-hint">בחרו תשובה אחת</div></div>`;
 }
 function illustration(q) {
   return quizType()==='limits'
@@ -416,7 +419,7 @@ function stageMarkup() {
     <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/questionSet().length}%"></div></div>
     <div class="quiz-layout">
       ${illustration(q)}
-      <div class="answer-card"><h2 class="question">${quizType()==='limits'?esc(q.question || 'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
+      <div class="answer-card"><h2 class="question">${quizType()==='limits'?(q.question?'בחרו את התשובה הנכונה':'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
         ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
         ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${limitChoiceMarkup(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
