@@ -47,6 +47,23 @@
     .live-status.good { border-color:#49d4ab; background:#214a43; }
     .live-status.pending-selection { border-color:#b9a2ff; background:#302a50; color:#f1eaff; }
     .live-status.warn { border-color:#f4bb62; }
+    /* Clear, personal grading visible immediately after the host reveals a solution. */
+    .live-personal-outcome { border:3px solid; border-radius:20px; padding:clamp(17px,3vw,28px); margin:8px auto 22px; box-shadow:0 12px 35px #090d2099; }
+    .live-personal-outcome.is-correct { border-color:#4bddad; background:#17483f; color:#f1fff9; }
+    .live-personal-outcome.is-wrong { border-color:#ff8197; background:#592c3d; color:#fff5f7; }
+    .live-personal-outcome.is-unanswered { border-color:#f4bb62; background:#514127; color:#fff9ed; }
+    .live-outcome-lead { display:flex; align-items:center; gap:15px; }
+    .live-outcome-icon { display:grid; place-items:center; flex:0 0 65px; min-height:65px; border-radius:16px; background:#0a15283d; font-size:38px; }
+    .live-outcome-lead h2 { font-size:clamp(30px,5vw,45px); line-height:1.2; margin:0 0 4px; color:inherit; }
+    .live-outcome-lead p { font-size:clamp(16px,2vw,19px); font-weight:700; margin:0; line-height:1.5; }
+    .live-outcome-compare { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:18px; }
+    .live-outcome-detail { min-width:0; padding:12px 15px; border:1px solid #ffffff69; border-radius:12px; background:#10182b66; }
+    .live-outcome-detail.mine-wrong { border:2px solid #ff96a8; }
+    .live-outcome-detail.right-answer { border:2px solid #4bddad; }
+    .live-outcome-detail > span { display:block; margin-bottom:7px; font-size:14px; opacity:.92; font-weight:700; }
+    .live-outcome-detail > strong { display:block; font-size:clamp(18px,2.4vw,24px); line-height:1.35; overflow-wrap:anywhere; }
+    @media(max-width:580px) { .live-outcome-compare { grid-template-columns:minmax(0,1fr); } .live-outcome-icon { flex-basis:52px; min-height:52px; font-size:30px; } }
+
     .live-actions { display:flex; flex-wrap:wrap; gap:10px; margin:13px 0; }
     .live-actions button:disabled,.choice:disabled { cursor:default; }
     .live-loading { opacity:.68; pointer-events:none; }
@@ -670,6 +687,6 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.js" integrity="sha384-Tt7wBxLKwSzFVRET4O4U9H6v8MNaQ/CjN2FMP4xFm0ErrFu6aNqoonRVW5W40iGI" crossorigin="anonymous"></script>
-<script type="module" src="./live.js?v=limits-layout-20261022-v3"></script>
+<script type="module" src="./live.js?v=reveal-personal-outcome-20261022"></script>
 </body>
 </html>
