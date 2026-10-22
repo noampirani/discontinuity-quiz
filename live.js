@@ -337,11 +337,29 @@ function chooseSpeaker() {
   live.speakerSeen.add(chosen.uid);
   updateSpeakerPanel();
 }
+function studentOutcomeHTML(q, mine) {
+  if(live.role!=='student') return '';
+  const labels=choiceLabels(q);
+  const answered=Number.isInteger(mine) && mine>=0 && mine<labels.length;
+  const right=answered && mine===q.type;
+  const status=answered?(right?'correct':'wrong'):'unanswered';
+  const symbol=right?'✅':answered?'❌':'⏳';
+  const heading=right?'צדקת!':answered?'טעית הפעם':'לא ענית על השאלה';
+  const description=right?'כל הכבוד! קיבלת 100 נקודות.':answered?'התשובה שבחרת שגויה. לא קיבלת נקודות על השאלה.':'לא נרשמה תשובה לשאלה הזו.';
+  const mineBlock=answered
+    ? `<div class="live-outcome-detail ${right?'':'mine-wrong'}"><span>התשובה שבחרת:</span><strong>${limitChoiceMarkup(labels[mine])}</strong></div>`
+    : '';
+  return `<section class="live-personal-outcome is-${status}" role="status" aria-label="תוצאה אישית">
+    <div class="live-outcome-lead"><span class="live-outcome-icon" aria-hidden="true">${symbol}</span><div><h2>${heading}</h2><p>${description}</p></div></div>
+    <div class="live-outcome-compare">${mineBlock}<div class="live-outcome-detail right-answer"><span>התשובה הנכונה:</span><strong>${limitChoiceMarkup(labels[q.type])}</strong></div></div>
+  </section>`;
+}
 function resultsSummaryHTML() {
   const m=live.meta, q=questionSet()[m.index];
   const mine=live.answers[`q${m.index}`]?.[live.uid]?.choice;
-  const selfMessage=live.role==='student' ? (!Number.isInteger(mine) ? '⌛ לא התקבלה תשובה שלך בשאלה הזו.' : mine===q.type ? '✅ כל הכבוד! תשובה נכונה — 100 נקודות.' : '❌ הפעם התשובה שלך לא הייתה נכונה.') : '';
+  const mineKey=Number.isInteger(mine)?String(mine):'none';
   return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
+    ${live.role==='student'?`<div id="livePersonalOutcome" data-choice="${mineKey}">${studentOutcomeHTML(q,mine)}</div>`:''}
     <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>📊 איך ענתה הכיתה?</h2>
       <p class="live-answer-label">התשובה הנכונה: <strong>${limitChoiceMarkup(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
@@ -351,7 +369,7 @@ function resultsSummaryHTML() {
       </div>
       <div id="liveResultsStats">${statsHTML()}</div>
     </div>
-    ${selfMessage?`<p class="live-status good">${selfMessage}</p>`:''}
+
     ${speakerHTML()}
     <p class="live-coming-next">🏆 ממתינים למתרגל להצגת טבלת המובילים…</p>
   </div>`;
@@ -377,12 +395,22 @@ function refreshRevealView(refreshData=false) {
     const controls=$('liveRevealControls');
     if(controls && live.role==='host') controls.innerHTML=hostControls();
     // קפיצה לראש מסך הדירוג גם כאשר הכפתור נמצא מתחת לתוצאות הארוכות.
-    if(view==='board') container.scrollIntoView({behavior:'smooth', block:'start'});
+    if(view==='board' || (view==='stats' && live.role==='student')) container.scrollIntoView({behavior:'smooth', block:'start'});
   }
   // אם תשובות מגיעות באיחור, מעדכנים את התוצאות מבלי להחליף שלב.
   if(view==='stats') {
     const stats=$('liveResultsStats');
     if(stats && !changed && refreshData) stats.innerHTML=statsHTML();
+    // Late Firebase answer delivery may change a student's personal result.
+    const personal=$('livePersonalOutcome');
+    if(personal && refreshData && live.role==='student') {
+      const choice=live.answers[`q${live.meta.index}`]?.[live.uid]?.choice;
+      const choiceKey=Number.isInteger(choice)?String(choice):'none';
+      if(personal.dataset.choice!==choiceKey) {
+        personal.dataset.choice=choiceKey;
+        personal.innerHTML=studentOutcomeHTML(questionSet()[live.meta.index],choice);
+      }
+    }
     if(!changed && refreshData) updateSpeakerPanel();
   }
   // מעדכן גם את הדירוג אם Firebase שלח נתוני שחקנים חדשים.
