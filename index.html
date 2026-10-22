@@ -45,6 +45,7 @@
     .live-meta { color:#c0c9e1; font-size:15px; line-height:1.7; }
     .live-status { border-radius:12px; background:#2e3856; border:1px solid #545f82; padding:11px 13px; margin:13px 0; line-height:1.65; }
     .live-status.good { border-color:#49d4ab; background:#214a43; }
+    .live-status.pending-selection { border-color:#b9a2ff; background:#302a50; color:#f1eaff; }
     .live-status.warn { border-color:#f4bb62; }
     .live-actions { display:flex; flex-wrap:wrap; gap:10px; margin:13px 0; }
     .live-actions button:disabled,.choice:disabled { cursor:default; }
@@ -152,7 +153,7 @@
     @media(prefers-reduced-motion:reduce) { .live-results-leaderboard .live-podium-spot, :is(.live-results-leaderboard,.live-finished-board) .live-podium-spot.place1 .medal, .live-confetti i { animation:none !important; } }
 
     .choice.selected { border-color:#e0c8ff; background:#49416d; box-shadow:inset 0 0 0 1px #b79dff; }
-    .choice.selected::after { content:'✓ נבחרה'; margin-inline-start:auto; font-size:12px; color:#e4d9ff; }
+    .choice.selected::after { content:'הבחירה שלי'; margin-inline-start:auto; font-size:12px; color:#e4d9ff; }
     .choice.selected.correct::after,.choice.selected.incorrect::after { display:none; }
 
     @media(max-width:800px) { .live-split { grid-template-columns:1fr; } .live-panel { padding:15px; } .live-rank { grid-template-columns:52px minmax(0,1fr) auto; } .host-invite { grid-template-columns:1fr; } .host-qr { margin:auto; } .live-podium { gap:5px; } .live-podium-spot { padding:10px 5px; } }
