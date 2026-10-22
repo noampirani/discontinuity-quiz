@@ -93,6 +93,14 @@
     .limit-display { min-height:225px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:17px; padding:23px 12px; background:#f8faff; color:#18213e; border-radius:16px; border:1px solid #cdd5e6; text-align:center; }
     .limit-display .limit-intro { color:#475777; font-size:17px; font-weight:700; }
     .limit-display .limit-hint { color:#52617d; font-size:14px; }
+    .limit-display .limit-intro { line-height:1.6; overflow-wrap:break-word; }
+    .limit-display-complex .katex { font-size:clamp(1.1rem,2.6vw,1.65rem); }
+    .limit-display .limit-target-math { padding:2px 4px 8px; }
+    .limit-display .limit-target-math .katex { font-size:clamp(1.2rem,2.7vw,1.8rem); }
+    .limit-legend { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; font-size:13px; color:#52617d; }
+    .limit-legend .hollow { color:#2476bb; font-weight:800; }
+    .limit-legend .filled { color:#c97720; font-weight:800; }
+    .limit-choice-text { display:inline-block; max-width:100%; line-height:1.5; overflow-wrap:anywhere; text-align:right; }
     .limit-graph-wrap { width:100%; max-width:460px; margin:0 auto; }
     .limit-graph-wrap svg { display:block; width:100%; height:auto; }
     .limit-display-graph { padding-top:14px; padding-bottom:14px; gap:7px; }
@@ -395,19 +403,20 @@
     {
       "id": 11,
       "kind": "piecewise",
-      "question": "מהו הגבול כאשר x מתקרב ל־2?",
+      "question": "הפונקציה מוגדרת כך. מהו הגבול שלה כאשר x מתקרב ל־2?",
       "tex": "f(x)=\\begin{cases}x+3 & x\\ne 2\\\\100 & x=2\\end{cases}",
       "options": [
         "5",
         "100",
         "הגבול לא קיים"
       ],
-      "type": 0
+      "type": 0,
+      "targetTex": "\\lim_{x\\to 2}f(x)=\\,?"
     },
     {
       "id": 13,
       "kind": "graph",
-      "question": "מהו הגבול כאשר x מתקרב ל־1?",
+      "question": "התבוננו בגרף. מהו הגבול כאשר x מתקרב ל־1?",
       "tex": "\\lim_{x\\to 1}f(x)",
       "options": [
         "2",
@@ -419,14 +428,15 @@
     {
       "id": 15,
       "kind": "concept",
-      "question": "האם מהנתון אפשר לקבוע את הגבול כאשר x מתקרב ל־2?",
+      "question": "נתון רק ש־f(2)=7. מה אפשר להסיק על הגבול כאשר x מתקרב ל־2?",
       "tex": "f(2)=7",
       "options": [
         "הגבול שווה ל־7",
         "הגבול שווה ל־3",
         "אין מספיק מידע לקבוע את הגבול"
       ],
-      "type": 2
+      "type": 2,
+      "targetTex": "\\lim_{x\\to 2}f(x)=\\,?"
     },
     {
       "id": 5,
@@ -660,6 +670,6 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.js" integrity="sha384-Tt7wBxLKwSzFVRET4O4U9H6v8MNaQ/CjN2FMP4xFm0ErrFu6aNqoonRVW5W40iGI" crossorigin="anonymous"></script>
-<script type="module" src="./live.js?v=selection-feedback-20261022"></script>
+<script type="module" src="./live.js?v=limits-layout-20261022-v3"></script>
 </body>
 </html>
