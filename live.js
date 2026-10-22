@@ -455,7 +455,7 @@ function refreshStudentChoices() {
   if(message) {
     const correct=questionSet()[m.index].type;
     message.innerHTML=m.phase==='revealed'?(hasAnswer?`<div class="live-status ${answer===correct?'good':'warn'}">${answer===correct?'✅ צדקת! קיבלת 100 נקודות.':'התשובה לא הייתה נכונה הפעם.'}</div>`:'<div class="live-status">לא התקבלה תשובה לשאלה זו.</div>'):
-      hasAnswer?`<div class="live-status good">✅ הבחירה הנוכחית שלך: <b>${limitChoiceMarkup(choiceLabels(questionSet()[m.index])[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}.</div>`:
+      hasAnswer?`<div class="live-status pending-selection">הבחירה הנוכחית שלך: <b>${limitChoiceMarkup(choiceLabels(questionSet()[m.index])[answer])}</b>. אפשר לשנות אותה עד לחשיפת התשובה${m.timerEnabled?' או סוף הזמן':''}. עדיין לא נבדק אם היא נכונה.</div>`:
       expired?'<div class="live-status warn">⏰ הזמן נגמר. ממתינים לחשיפת התשובה.</div>':'';
   }
 }
