@@ -32,18 +32,36 @@ function katexMarkup(tex, displayMode=false) {
 function limitChoiceMarkup(label) {
   if(quizType()!=='limits') return esc(label);
   const plain=String(label).replace(/−/g,'-');
+  // Hebrew answer choices must be shown as ordinary text, not interpreted as TeX.
+  if(/[\u0590-\u05FF]/.test(plain)) return esc(label);
   const fraction=plain.match(/^(-?\d+)\/(\d+)$/);
   const tex=fraction ? `\\frac{${fraction[1]}}{${fraction[2]}}` : plain;
   return katexMarkup(tex);
 }
 function limitCard(q) {
-  return `<div class="limit-display"><div class="limit-intro">חשבו את הגבול</div>
-    <div class="limit-math" role="math" aria-label="${esc(q.tex)}">${katexMarkup(q.tex,true)}</div>
-    <div class="limit-hint">גבול סופי רגיל · בחרו את התוצאה</div></div>`;
+  const visual=q.kind==='graph'
+    ? `<div class="limit-graph-wrap"><svg viewBox="0 0 360 240" role="img" aria-label="הישר y שווה x ועוד 1 עם חור בנקודה (1,2), וערך הפונקציה בנקודה (1,4)">
+      <g stroke="#dce3ef" stroke-width="1">
+        <line x1="32" y1="175" x2="332" y2="175"/><line x1="32" y1="135" x2="332" y2="135"/>
+        <line x1="32" y1="95" x2="332" y2="95"/><line x1="32" y1="55" x2="332" y2="55"/>
+        <line x1="143" y1="26" x2="143" y2="215" stroke-dasharray="4 5"/>
+      </g>
+      <path d="M32 215 H337 M88 218 V18" stroke="#34415d" fill="none" stroke-width="1.8"/>
+      <path d="M331 210 L338 215 L331 220 M83 26 L88 17 L93 26" stroke="#34415d" fill="none" stroke-width="1.8"/>
+      <g fill="#34415d" font-family="Arial, sans-serif" font-size="14">
+        <text x="340" y="233">x</text><text x="75" y="14">y</text>
+        <text x="139" y="233">1</text><text x="73" y="139">2</text><text x="73" y="59">4</text>
+      </g>
+      <path d="M32 215 L253 55" fill="none" stroke="#2476bb" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="143" cy="135" r="7.5" fill="#f8faff" stroke="#2476bb" stroke-width="3"/>
+      <circle cx="143" cy="55" r="6.5" fill="#e08b35" stroke="#b36a1a" stroke-width="1.4"/>
+    </svg></div>`
+    : `<div class="limit-math" role="math" aria-label="${esc(q.tex)}">${katexMarkup(q.tex,true)}</div>`;
+  return `<div class="limit-display ${q.kind==='graph'?'limit-display-graph':''}"><div class="limit-intro">${esc(q.question || 'חשבו את הגבול')}</div>${visual}<div class="limit-hint">בחרו תשובה אחת</div></div>`;
 }
 function illustration(q) {
   return quizType()==='limits'
-    ? `<div class="graph-card"><div class="graph-title">תרגיל חישוב גבול</div>${limitCard(q)}</div>`
+    ? `<div class="graph-card"><div class="graph-title">שאלת גבול</div>${limitCard(q)}</div>`
     : `<div class="graph-card"><div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div><div class="plot-wrap">${makePlot(q)}</div>
       <div class="legend"><span><i class="symbol"></i> עיגול ריק</span><span><i class="symbol filled"></i> ערך הפונקציה</span><span><i class="symbol line"></i> הנקודה לבדיקה</span></div></div>`;
 }
@@ -325,7 +343,7 @@ function resultsSummaryHTML() {
       <p class="live-answer-label">התשובה הנכונה: <strong>${limitChoiceMarkup(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
       <div class="graph-card live-results-graph">
-        <div class="graph-title">${quizType()==='limits'?'תרגיל חישוב גבול':`גרף הפונקציה — סביב x = ${q.at}`}</div>
+        <div class="graph-title">${quizType()==='limits'?'שאלת גבול':`גרף הפונקציה — סביב x = ${q.at}`}</div>
         ${quizType()==='limits'?limitCard(q):`<div class="plot-wrap">${makePlot(q)}</div>`}
       </div>
       <div id="liveResultsStats">${statsHTML()}</div>
@@ -398,7 +416,7 @@ function stageMarkup() {
     <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/questionSet().length}%"></div></div>
     <div class="quiz-layout">
       ${illustration(q)}
-      <div class="answer-card"><h2 class="question">${quizType()==='limits'?'מהו ערך הגבול?':`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
+      <div class="answer-card"><h2 class="question">${quizType()==='limits'?esc(q.question || 'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
         ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
         ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${limitChoiceMarkup(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
