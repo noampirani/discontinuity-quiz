@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#111427">
-  <meta name="description" content="חידון כיתתי אינטראקטיבי עם שני סוגי חדרים: אי־רציפות או חישוב גבולות, 10 שאלות בכל חדר.">
+  <meta name="description" content="חידון כיתתי אינטראקטיבי עם שלושה סוגי חדרים: אי־רציפות, גבולות או פונקציות הפיכות, 10 שאלות בכל חדר.">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.css" integrity="sha384-UA8juhPf75SzzAMA/4fo3yOU7sBJ0om7SCD2GHq0fZqZco6tr1UCV7nUbk9J90JM" crossorigin="anonymous">
   <title>רגע, מה קרה לפונקציה? | משחק אי־רציפות</title>
   <style>
@@ -318,6 +318,7 @@
           <select class="live-field" id="liveQuizType" aria-label="נושא החידון">
             <option value="discontinuity">אי־רציפות — 10 שאלות עם גרפים</option>
             <option value="limits">גבולות — 10 שאלות חישוב</option>
+             <option value="inverse">פונקציות הפיכות — 7 שאלות גרפיות</option>
           </select>
           <label class="toggle"><input type="checkbox" id="liveUseTimer" checked> <span id="liveTimerLabel">שעון של 30 שניות לשאלה</span></label>
           <div class="live-actions"><button class="btn primary" id="createRoom">יצירת חדר חדש</button></div>
@@ -346,7 +347,7 @@
       <div id="liveRoomError" class="live-error" role="alert"></div>
       <div id="liveStage" aria-live="polite"></div>
     </section>
-    <div class="floating-credit">שני סוגי חדרים כיתתיים: גבולות ואי־רציפות · 10 שאלות בכל חידון · Firebase</div>
+    <div class="floating-credit">שלושה סוגי חדרים כיתתיים: גבולות, אי־רציפות ופונקציות הפיכות · Firebase</div>
   </main>
 <script>
 (() => {
@@ -495,6 +496,105 @@
       "tex": "\\lim_{x\\to 4}\\frac{\\sqrt{x}-2}{x-4}"
     }
   ];
+
+  // Seven graph-based injectivity, surjectivity and invertibility questions.
+  const INVERSE_QUESTIONS = [
+  {
+    "id": 1,
+    "shape": "line",
+    "question": "האם הפונקציה חח״ע?",
+    "domain": "f: ℝ → ℝ",
+    "options": [
+      "כן",
+      "לא, כי שני ערכי x נותנים אותו y",
+      "לא ניתן להכריע מהגרף"
+    ],
+    "type": 0
+  },
+  {
+    "id": 2,
+    "shape": "square",
+    "question": "האם הפונקציה חח״ע?",
+    "domain": "f: ℝ → ℝ",
+    "options": [
+      "כן",
+      "לא",
+      "כן, כי היא מוגדרת לכל x"
+    ],
+    "type": 1
+  },
+  {
+    "id": 3,
+    "shape": "exp",
+    "question": "האם הפונקציה על?",
+    "domain": "f: ℝ → ℝ",
+    "options": [
+      "כן",
+      "לא, כי אינה חח״ע",
+      "לא, כי אין לה ערכים שאינם חיוביים"
+    ],
+    "type": 2
+  },
+  {
+    "id": 4,
+    "shape": "cubic",
+    "question": "האם הפונקציה הפיכה?",
+    "domain": "f: ℝ → ℝ",
+    "options": [
+      "כן",
+      "לא, כי אינה חח״ע",
+      "לא, כי אינה על"
+    ],
+    "type": 0
+  },
+  {
+    "id": 5,
+    "shape": "absolute",
+    "question": "האם הפונקציה על?",
+    "domain": "f: ℝ → [0,∞)",
+    "options": [
+      "כן",
+      "לא, כי אינה חח״ע",
+      "לא, כי מספרים חיוביים אינם מתקבלים"
+    ],
+    "type": 0
+  },
+  {
+    "id": 6,
+    "shape": "reciprocal",
+    "question": "האם הפונקציה הפיכה?",
+    "domain": "f: ℝ∖{0} → ℝ∖{0}",
+    "options": [
+      "כן",
+      "לא, כי אינה חח״ע",
+      "לא, כי אינה על"
+    ],
+    "type": 0
+  },
+  {
+    "id": 7,
+    "shape": "squarePositive",
+    "question": "האם הפונקציה הפיכה?",
+    "domain": "f: [0,∞) → [0,∞)",
+    "options": [
+      "כן",
+      "לא, כי אינה חח״ע",
+      "לא, כי אינה על"
+    ],
+    "type": 0
+  }
+];
+  function inversePlot(q) {
+    const L=48,R=710,T=23,B=349, xmin=-3,xmax=3,ymin=-3,ymax=3;
+    const sx=x=>L+(x-xmin)*(R-L)/(xmax-xmin);
+    const sy=y=>B-(y-ymin)*(B-T)/(ymax-ymin);
+    const x0=q.shape==='squarePositive'?0:-3;
+    const f=x=>({line:()=>x,square:()=>x*x,exp:()=>Math.exp(x),cubic:()=>x*x*x/3,absolute:()=>Math.abs(x),reciprocal:()=>1/x,squarePositive:()=>x*x})[q.shape]();
+    const segment=(a,b)=>{let d='',active=false;for(let i=0;i<=600;i++){const x=a+(b-a)*i/600,y=f(x);if(!Number.isFinite(y)||y<ymin||y>ymax){active=false;continue;}d+=(active?'L':'M')+sx(x).toFixed(2)+' '+sy(y).toFixed(2)+' ';active=true;}return d;};
+    const paths=q.shape==='reciprocal'?segment(-3,-0.03)+segment(0.03,3):segment(x0,3);
+    const grid=[];for(let v=-3;v<=3;v++){grid.push(`<line x1="${sx(v)}" x2="${sx(v)}" y1="${T}" y2="${B}" stroke="#e4eaf2"/><line x1="${L}" x2="${R}" y1="${sy(v)}" y2="${sy(v)}" stroke="#e4eaf2"/><text x="${sx(v)}" y="${B+19}" text-anchor="middle" font-size="13" fill="#596783">${v}</text>`);if(v!==0)grid.push(`<text x="${L-9}" y="${sy(v)+5}" text-anchor="end" font-size="13" fill="#596783">${v}</text>`);}
+    return `<svg viewBox="0 0 760 390" role="img" aria-label="גרף הפונקציה ${esc(q.domain)}"><rect width="760" height="390" fill="#fcfdff"/>${grid.join('')}<path d="M${L} ${sy(0)}H${R} M${sx(0)} ${T}V${B}" stroke="#71819d" stroke-width="1.8"/><path d="${paths}" fill="none" stroke="#2675cd" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><text x="${R+10}" y="${sy(0)-9}" fill="#596783">x</text><text x="${sx(0)+9}" y="${T+7}" fill="#596783">y</text></svg>`;
+  }
   const $ = id => document.getElementById(id);
   const state = { mode:'solo', timed:true, i:0, points:0, right:0, responses:[], revealed:false, timer:null, deadline:null };
   const panels = ['home','quiz','result','liveSetup','liveRoom'];
@@ -665,7 +765,7 @@
       <text x="${R+15}" y="${yn(0)-10}" font-size="18" font-weight="bold" fill="#6c7790">x</text><text x="${xn(0)+10}" y="${T+9}" font-size="18" font-weight="bold" fill="#6c7790">y</text>
       </g></svg>`;
   }
-  window.quizShared={QUESTIONS,LIMIT_QUESTIONS,TYPES,makePlot,esc};
+  window.quizShared={QUESTIONS,LIMIT_QUESTIONS,INVERSE_QUESTIONS,TYPES,makePlot,inversePlot,esc};
   window.quizShow=show;
   $('startLive').addEventListener('click',()=>show('liveSetup'));
   $('startSolo').addEventListener('click',()=>start('solo'));
@@ -687,6 +787,6 @@
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
 <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.45/dist/katex.min.js" integrity="sha384-Tt7wBxLKwSzFVRET4O4U9H6v8MNaQ/CjN2FMP4xFm0ErrFu6aNqoonRVW5W40iGI" crossorigin="anonymous"></script>
-<script type="module" src="./live.js?v=reveal-personal-outcome-20261022"></script>
+<script type="module" src="./live.js?v=inverse-quiz-20261025"></script>
 </body>
 </html>
