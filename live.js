@@ -4,7 +4,7 @@ import { getAuth, signInAnonymously } from 'https://www.gstatic.com/firebasejs/1
 import { getDatabase, ref, get, set, update, remove, runTransaction, onValue, serverTimestamp } from 'https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js';
 import { firebaseConfig } from './firebase-config.js';
 
-const { QUESTIONS, LIMIT_QUESTIONS, TYPES, makePlot, esc } = window.quizShared;
+const { QUESTIONS, LIMIT_QUESTIONS, INVERSE_QUESTIONS, TYPES, makePlot, inversePlot, esc } = window.quizShared;
 const $ = id => document.getElementById(id);
 const SESSION_KEY = 'continuity-quiz-live-session-v2';
 // מסך התוצאות נשאר פתוח עד שהמתרגל בוחר להציג את הדירוג.
@@ -17,11 +17,11 @@ let db = null, auth = null, connectPromise = null;
 let inProgress = false;
 const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', revealView: '', speakerQuestion: -1, speakerPicked: '', speakerSeen: new Set(), boardSignature: '', clock: null, serverOffset: 0, autoReveal: false };
 
-const quizType = () => live.meta?.quizType === 'limits' ? 'limits' : 'discontinuity';
-const questionSet = () => quizType()==='limits' ? LIMIT_QUESTIONS : QUESTIONS;
-const choiceLabels = q => quizType()==='limits' ? q.options : TYPES.map(t=>`אי־רציפות ${t}`);
+const quizType = () => ['limits','inverse'].includes(live.meta?.quizType) ? live.meta.quizType : 'discontinuity';
+const questionSet = () => quizType()==='limits' ? LIMIT_QUESTIONS : quizType()==='inverse' ? INVERSE_QUESTIONS : QUESTIONS;
+const choiceLabels = q => quizType()!=='discontinuity' ? q.options : TYPES.map(t=>`אי־רציפות ${t}`);
 const correctLabel = q => choiceLabels(q)[q.type];
-const subjectLabel = () => quizType()==='limits' ? 'גבולות' : 'אי־רציפות';
+const subjectLabel = () => quizType()==='limits' ? 'גבולות' : quizType()==='inverse' ? 'פונקציות הפיכות' : 'אי־רציפות';
 function katexMarkup(tex, displayMode=false) {
   if(typeof window.katex?.renderToString === 'function') {
     return window.katex.renderToString(tex,{displayMode,throwOnError:false,trust:false});
@@ -63,7 +63,7 @@ function limitCard(q) {
   return `<div class="limit-display ${q.kind==='graph'?'limit-display-graph':''} ${q.kind==='piecewise'?'limit-display-complex':''}"><div class="limit-intro" dir="rtl">${esc(q.question || 'חשבו את הגבול')}</div>${formula}${visual}${legend}${target}<div class="limit-hint">בחרו תשובה אחת</div></div>`;
 }
 function illustration(q) {
-  return quizType()==='limits'
+  return quizType()==='inverse' ? `<div class="graph-card"><div class="graph-title">${esc(q.domain)}</div><div class="plot-wrap">${inversePlot(q)}</div></div>` : quizType()==='limits'
     ? `<div class="graph-card"><div class="graph-title">שאלת גבול</div>${limitCard(q)}</div>`
     : `<div class="graph-card"><div class="graph-title">גרף הפונקציה — סביב x = ${q.at}</div><div class="plot-wrap">${makePlot(q)}</div>
       <div class="legend"><span><i class="symbol"></i> עיגול ריק</span><span><i class="symbol filled"></i> ערך הפונקציה</span><span><i class="symbol line"></i> הנקודה לבדיקה</span></div></div>`;
@@ -130,7 +130,7 @@ async function createRoom() {
       const roomNode = ref(db, `rooms/${code}`);
       const created = await runTransaction(roomNode, current => {
         if(current !== null) return;
-        return { meta: { hostUid:live.uid, phase:'lobby', index:-1, questionKey:'', quizType:$('liveQuizType').value==='limits'?'limits':'discontinuity', timerEnabled:$('liveUseTimer').checked, timerSeconds:$('liveQuizType').value==='limits'?60:30, deadline:0, createdAt:Date.now() } };
+        return { meta: { hostUid:live.uid, phase:'lobby', index:-1, questionKey:'', quizType:['limits','inverse'].includes($('liveQuizType').value)?$('liveQuizType').value:'discontinuity', timerEnabled:$('liveUseTimer').checked, timerSeconds:$('liveQuizType').value==='limits'?60:$('liveQuizType').value==='inverse'?20:30, deadline:0, createdAt:Date.now() } };
       }, {applyLocally:false});
       if(created.committed) {
         safeStore({code, role:'host', uid:live.uid});
@@ -364,8 +364,8 @@ function resultsSummaryHTML() {
       <p class="live-answer-label">התשובה הנכונה: <strong>${limitChoiceMarkup(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
       <div class="graph-card live-results-graph">
-        <div class="graph-title">${quizType()==='limits'?'שאלת גבול':`גרף הפונקציה — סביב x = ${q.at}`}</div>
-        ${quizType()==='limits'?limitCard(q):`<div class="plot-wrap">${makePlot(q)}</div>`}
+        <div class="graph-title">${quizType()==='limits'?'שאלת גבול':quizType()==='inverse'?q.domain:`גרף הפונקציה — סביב x = ${q.at}`}</div>
+        ${quizType()==='limits'?limitCard(q):`<div class="plot-wrap">${quizType()==='inverse'?inversePlot(q):makePlot(q)}</div>`}
       </div>
       <div id="liveResultsStats">${statsHTML()}</div>
     </div>
@@ -431,7 +431,7 @@ function hostControls() {
 function stageMarkup() {
   const m=live.meta, host=live.role==='host', count=Object.keys(live.players).length;
   if(m.phase==='lobby') {
-    return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">נושא החדר: <strong>${subjectLabel()}</strong> · 10 שאלות</p><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
+    return `<div class="live-panel"><h2>חדר המתנה — ${count} משתתפים</h2><p class="live-meta">נושא החדר: <strong>${subjectLabel()}</strong> · ${questionSet().length} שאלות</p><p class="live-meta">${host?'שתפו את הקוד או קישור ההזמנה. כשכולם הצטרפו לחצו על התחלה.':'נכנסת למשחק! ממתינים שהמתרגל יתחיל.'}</p><div id="liveNames"></div>${host?hostControls():''}</div><div id="liveBoardPlace"></div>`;
   }
   if(m.phase==='finished') {
     return `<div class="live-panel"><h2>🎊 המשחק הסתיים!</h2><p class="live-meta">${questionSet().length} שאלות בנושא ${subjectLabel()}. כל הכבוד לכל המשתתפים!</p>${host?hostControls():''}</div><div class="live-finished-board"><div class="live-results-hero live-celebration-hero">${podiumConfetti()}<h2>🎊 הפודיום הסופי!</h2></div><div id="liveBoardPlace"></div></div><div id="liveAllStats"></div>`;
@@ -447,7 +447,7 @@ function stageMarkup() {
     <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/questionSet().length}%"></div></div>
     <div class="quiz-layout">
       ${illustration(q)}
-      <div class="answer-card"><h2 class="question">${quizType()==='limits'?(q.question?'בחרו את התשובה הנכונה':'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
+      <div class="answer-card"><h2 class="question">${quizType()==='inverse'?q.question:quizType()==='limits'?(q.question?'בחרו את התשובה הנכונה':'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
         ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
         ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${limitChoiceMarkup(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
