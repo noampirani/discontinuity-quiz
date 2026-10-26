@@ -360,7 +360,7 @@ function resultsSummaryHTML() {
   const mineKey=Number.isInteger(mine)?String(mine):'none';
   return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
     ${live.role==='student'?`<div id="livePersonalOutcome" data-choice="${mineKey}">${studentOutcomeHTML(q,mine)}</div>`:''}
-    <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>📊 איך ענתה הכיתה?</h2>
+    <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>${quizType()==='inverse'?esc(q.question):'📊 איך ענתה הכיתה?'}</h2>${quizType()==='inverse'?'<p class="live-meta">📊 איך ענתה הכיתה?</p>':''}
       <p class="live-answer-label">התשובה הנכונה: <strong>${limitChoiceMarkup(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
       <div class="graph-card live-results-graph">
@@ -447,7 +447,7 @@ function stageMarkup() {
     <div class="progress"><div style="width:${100*(m.index+(m.phase==='revealed'?1:0))/questionSet().length}%"></div></div>
     <div class="quiz-layout">
       ${illustration(q)}
-      <div class="answer-card"><h2 class="question">${quizType()==='inverse'?q.question:quizType()==='limits'?(q.question?'בחרו את התשובה הנכונה':'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
+      <div class="answer-card"><h2 class="question">${quizType()==='inverse'?esc(q.question):quizType()==='limits'?(q.question?'בחרו את התשובה הנכונה':'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
         ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
         ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${limitChoiceMarkup(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
