@@ -17,11 +17,28 @@ let db = null, auth = null, connectPromise = null;
 let inProgress = false;
 const live = { code: '', role: '', uid: '', meta: null, players: {}, answers: {}, unsubs: [], stageKey: '', revealView: '', speakerQuestion: -1, speakerPicked: '', speakerSeen: new Set(), boardSignature: '', clock: null, serverOffset: 0, autoReveal: false };
 
+const SPEED_BONUS_MAX = 20;
+const SPEED_GRACE_MS = 8000;
+
 const quizType = () => ['limits','inverse'].includes(live.meta?.quizType) ? live.meta.quizType : 'discontinuity';
 const questionSet = () => quizType()==='limits' ? LIMIT_QUESTIONS : quizType()==='inverse' ? INVERSE_QUESTIONS : QUESTIONS;
 const choiceLabels = q => quizType()!=='discontinuity' ? q.options : TYPES.map(t=>`אי־רציפות ${t}`);
 const correctLabel = q => choiceLabels(q)[q.type];
 const subjectLabel = () => quizType()==='limits' ? 'גבולות' : quizType()==='inverse' ? 'פונקציות הפיכות' : 'אי־רציפות';
+// The bonus only applies to newly created, timed 20-second discontinuity rooms.
+const speedBonusEnabled = () => quizType()==='discontinuity' && live.meta?.timerEnabled===true && Number(live.meta.timerSeconds)===20;
+function pointsForAnswer(index, answer) {
+  if(answer?.choice !== questionSet()[index]?.type) return 0;
+  if(!speedBonusEnabled()) return 100;
+  const deadline = Number(live.meta?.questionDeadlines?.[`q${index}`]);
+  const answeredAt = Number(answer?.at); // Firebase server timestamp, survives rejoining.
+  if(!(deadline>0) || !(answeredAt>0)) return 100; // Backward-compatible fallback.
+  const remaining = Math.max(0, Math.min(20000, deadline - answeredAt));
+  return 100 + Math.round(SPEED_BONUS_MAX * Math.min(1, remaining / (20000 - SPEED_GRACE_MS)));
+}
+const scoreExplanation = () => speedBonusEnabled()
+  ? '100 נקודות לכל תשובה נכונה, ועוד עד 20 נקודות בונוס מהירות (ללא ירידה ב־8 השניות הראשונות).'
+  : '100 נקודות לכל תשובה נכונה.';
 function katexMarkup(tex, displayMode=false) {
   if(typeof window.katex?.renderToString === 'function') {
     return window.katex.renderToString(tex,{displayMode,throwOnError:false,trust:false});
@@ -130,7 +147,7 @@ async function createRoom() {
       const roomNode = ref(db, `rooms/${code}`);
       const created = await runTransaction(roomNode, current => {
         if(current !== null) return;
-        return { meta: { hostUid:live.uid, phase:'lobby', index:-1, questionKey:'', quizType:['limits','inverse'].includes($('liveQuizType').value)?$('liveQuizType').value:'discontinuity', timerEnabled:$('liveUseTimer').checked, timerSeconds:$('liveQuizType').value==='limits'?60:$('liveQuizType').value==='inverse'?20:30, deadline:0, createdAt:Date.now() } };
+        return { meta: { hostUid:live.uid, phase:'lobby', index:-1, questionKey:'', quizType:['limits','inverse'].includes($('liveQuizType').value)?$('liveQuizType').value:'discontinuity', timerEnabled:$('liveUseTimer').checked, timerSeconds:$('liveQuizType').value==='limits'?60:20, deadline:0, createdAt:Date.now() } };
       }, {applyLocally:false});
       if(created.committed) {
         safeStore({code, role:'host', uid:live.uid});
@@ -233,7 +250,8 @@ function getPlayerScores(through=null) {
   return Object.entries(live.players).map(([uid, profile]) => {
     let score=0, correct=0;
     for(let i=0;i<=last && i<questionSet().length;i++) {
-      if(live.answers[`q${i}`]?.[uid]?.choice === questionSet()[i].type) { score+=100;correct++; }
+      const earned=pointsForAnswer(i,live.answers[`q${i}`]?.[uid]);
+      if(earned) {score+=earned;correct++;}
     }
     return {uid, name:profile.name || 'ללא כינוי', score, correct};
   }).sort((a,b)=>b.score-a.score || a.name.localeCompare(b.name, 'he') || a.uid.localeCompare(b.uid));
@@ -267,7 +285,7 @@ function boardHTML(max=40) {
   ].map(([i,medal,label])=>rank[i]?`<div class="live-podium-spot place${i+1}"><span class="medal">${medal}</span><b>${label}</b><span class="winner-name" dir="auto">${esc(rank[i].name)}</span><span class="winner-score">${rank[i].score} נקודות</span></div>`:`<div class="live-podium-spot place${i+1}"><span class="medal">${medal}</span><span>${label}</span><span class="note">טרם נקבע</span></div>`).join('')}</div>`:'';
   const risers=biggestClimbers();
   const riserLabel=risers.length ? `<div class="live-climber" role="status"><span class="live-climber-icon">🚀</span><div><b>${risers.length>1?'הקפיצה הגדולה בדירוג':'מטפס/ת השאלה'}</b><p>${risers.map(p=>`<strong dir="auto">${esc(p.name)}</strong>`).join(' · ')} — עלייה של ${risers[0].gain} ${risers[0].gain===1?'מקום':'מקומות'}!</p></div></div>` : '';
-  return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${podium}${riserLabel}${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">100 נקודות לתשובה נכונה. בשוויון ניקוד סדר ההצגה נקבע לפי כינוי.</p></div>`;
+  return `<div class="live-board"><h3>🏆 Leaderboard — טבלת המובילים</h3>${podium}${riserLabel}${visible.length?visible.map((p,i)=>`<div class="live-rank ${p.uid===live.uid&&live.role==='student'?'me':''}"><b>${p.actualRank || i+1}</b><span dir="auto">${esc(p.name)}${p.uid===live.uid&&live.role==='student'?' (אני)':''}</span><b>${p.score}</b></div>`).join(''):'<p class="live-meta">עדיין אין משתתפים.</p>'}<p class="note">${scoreExplanation()} בשוויון ניקוד סדר ההצגה נקבע לפי כינוי.</p></div>`;
 }
 function countsFor(index) {
   const labels=choiceLabels(questionSet()[index]);
@@ -345,7 +363,8 @@ function studentOutcomeHTML(q, mine) {
   const status=answered?(right?'correct':'wrong'):'unanswered';
   const symbol=right?'✅':answered?'❌':'⏳';
   const heading=right?'צדקת!':answered?'טעית הפעם':'לא ענית על השאלה';
-  const description=right?'כל הכבוד! קיבלת 100 נקודות.':answered?'התשובה שבחרת שגויה. לא קיבלת נקודות על השאלה.':'לא נרשמה תשובה לשאלה הזו.';
+  const earned=pointsForAnswer(live.meta.index,live.answers[`q${live.meta.index}`]?.[live.uid]);
+  const description=right?`כל הכבוד! קיבלת ${earned} נקודות${earned>100?' (כולל בונוס מהירות)':''}.`:answered?'התשובה שבחרת שגויה. לא קיבלת נקודות על השאלה.':'לא נרשמה תשובה לשאלה הזו.';
   const mineBlock=answered
     ? `<div class="live-outcome-detail ${right?'':'mine-wrong'}"><span>התשובה שבחרת:</span><strong>${limitChoiceMarkup(labels[mine])}</strong></div>`
     : '';
@@ -359,7 +378,7 @@ function resultsSummaryHTML() {
   const mine=live.answers[`q${m.index}`]?.[live.uid]?.choice;
   const mineKey=Number.isInteger(mine)?String(mine):'none';
   return `<div class="live-results-page live-results-summary" role="region" aria-label="תוצאות השאלה">
-    ${live.role==='student'?`<div id="livePersonalOutcome" data-choice="${mineKey}">${studentOutcomeHTML(q,mine)}</div>`:''}
+    ${live.role==='student'?`<div id="livePersonalOutcome" data-choice="${mineKey}" data-points="${pointsForAnswer(m.index,live.answers[`q${m.index}`]?.[live.uid])}">${studentOutcomeHTML(q,mine)}</div>`:''}
     <div class="live-results-hero"><div class="kicker">שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>${quizType()==='inverse'?esc(q.question):'📊 איך ענתה הכיתה?'}</h2>${quizType()==='inverse'?'<p class="live-meta">📊 איך ענתה הכיתה?</p>':''}
       <p class="live-answer-label">התשובה הנכונה: <strong>${limitChoiceMarkup(correctLabel(q))}</strong></p></div>
     <div class="live-results-grid">
@@ -377,7 +396,7 @@ function resultsSummaryHTML() {
 function resultsLeaderboardHTML() {
   const m=live.meta, counts=countsFor(m.index);
   return `<div class="live-results-page live-results-leaderboard" role="region" aria-label="טבלת מובילים">
-    <div class="live-results-hero live-celebration-hero">${podiumConfetti()}<div class="kicker">אחרי שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. 100 נקודות לכל תשובה נכונה.</p></div>
+    <div class="live-results-hero live-celebration-hero">${podiumConfetti()}<div class="kicker">אחרי שאלה ${m.index+1} מתוך ${questionSet().length}</div><h2>🏆 והנה המובילים!</h2><p class="live-meta">הניקוד כולל את השאלה האחרונה. ${scoreExplanation()}</p></div>
     <div class="live-results-ribbon"><span>✅ ${counts.correct} צדקו</span><span>❌ ${counts.wrong} טעו</span><span>⌛ ${counts.unanswered} לא ענו</span></div>
     ${boardHTML()}
   </div>`;
@@ -406,8 +425,10 @@ function refreshRevealView(refreshData=false) {
     if(personal && refreshData && live.role==='student') {
       const choice=live.answers[`q${live.meta.index}`]?.[live.uid]?.choice;
       const choiceKey=Number.isInteger(choice)?String(choice):'none';
-      if(personal.dataset.choice!==choiceKey) {
+      const earned=pointsForAnswer(live.meta.index,live.answers[`q${live.meta.index}`]?.[live.uid]);
+      if(personal.dataset.choice!==choiceKey || personal.dataset.points!==String(earned)) {
         personal.dataset.choice=choiceKey;
+        personal.dataset.points=String(earned);
         personal.innerHTML=studentOutcomeHTML(questionSet()[live.meta.index],choice);
       }
     }
@@ -448,7 +469,7 @@ function stageMarkup() {
     <div class="quiz-layout">
       ${illustration(q)}
       <div class="answer-card"><h2 class="question">${quizType()==='inverse'?esc(q.question):quizType()==='limits'?(q.question?'בחרו את התשובה הנכונה':'מהו ערך הגבול?'):`מהו סוג אי־הרציפות ב־x = ${q.at}?`}</h2>
-        ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': '<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.</p>'}
+        ${host?'<p class="prompt">הסטודנטים עונים עכשיו מהטלפונים.</p>': `<p class="prompt">בחרו תשובה. אפשר לתקן ולשנות את הבחירה עד לחשיפת הפתרון או סוף הזמן.${speedBonusEnabled()?' תשובה נכונה שווה 100–120 נקודות, עם 8 שניות ללא הפחתת בונוס.':''}</p>`}
         ${host?'':`<div id="liveStudentChoices">${choiceLabels(q).map((t,i)=>`<button class="choice" data-action="answer" data-choice="${i}"><span class="letter">${i+1}</span><span>${limitChoiceMarkup(t)}</span></button>`).join('')}</div><div id="liveAnswerReceipt"></div>`}
         <div id="liveRevealFeedback"></div>
         ${!host?'<div id="liveStudentStats"></div>':''}
@@ -503,7 +524,7 @@ function refreshStudentChoices() {
   const message=$('liveAnswerReceipt');
   if(message) {
     const correct=questionSet()[m.index].type;
-    message.innerHTML=m.phase==='revealed'?(hasAnswer?`<div class="live-status ${answer===correct?'good':'warn'}">${answer===correct?'✅ צדקת! קיבלת 100 נקודות.':'התשובה לא הייתה נכונה הפעם.'}</div>`:'<div class="live-status">לא התקבלה תשובה לשאלה זו.</div>'):
+    message.innerHTML=m.phase==='revealed'?(hasAnswer?`<div class="live-status ${answer===correct?'good':'warn'}">${answer===correct?`✅ צדקת! קיבלת ${pointsForAnswer(m.index,live.answers[`q${m.index}`]?.[live.uid])} נקודות.`:'התשובה לא הייתה נכונה הפעם.'}</div>`:'<div class="live-status">לא התקבלה תשובה לשאלה זו.</div>'):
       // Before reveal, selecting an answer must not create a success/error message.
       // The purple highlight on the selected option is the only visual feedback.
       expired && !hasAnswer ? '<div class="live-status">⏰ הזמן נגמר. ממתינים לחשיפת התשובה.</div>' : '';
@@ -520,7 +541,8 @@ async function startOrNext() {
   if(old.phase!=='lobby' && old.phase!=='revealed') return;
   const next=old.phase==='lobby'?0:old.index+1;
   if(next>=questionSet().length) { await hostUpdate({phase:'finished'}); return; }
-  await hostUpdate({ phase:'question', index:next, questionKey:`q${next}`, deadline:old.timerEnabled?nowServer()+1000*(old.timerSeconds||30):0, revealedAt:0, showBoard:false });
+  const deadline=old.timerEnabled?nowServer()+1000*(old.timerSeconds||30):0;
+  await hostUpdate({ phase:'question', index:next, questionKey:`q${next}`, deadline, [`questionDeadlines/q${next}`]:deadline, revealedAt:0, showBoard:false });
   live.autoReveal=false;
 }
 async function revealQuestion() {
@@ -576,7 +598,7 @@ $('liveSetupIntro').textContent=teacherMode ? 'יצירת חדר להקרנה ב
 $('startLive').textContent=teacherMode ? '🎓 פתיחת חדר למתרגל' : '🏆 הצטרפות למשחק כיתתי';
 $('liveQuizType').addEventListener('change',()=>{
   const limits=$('liveQuizType').value==='limits';
-  $('liveTimerLabel').textContent=limits?'שעון של 60 שניות לשאלה':'שעון של 30 שניות לשאלה';
+  $('liveTimerLabel').textContent=limits?'שעון של 60 שניות לשאלה':$('liveQuizType').value==='inverse'?'שעון של 20 שניות לשאלה':'שעון של 20 שניות לשאלה · בונוס מהירות מתון';
   $('liveUseTimer').checked=!limits;
 });
 $('createRoom').addEventListener('click',createRoom);
